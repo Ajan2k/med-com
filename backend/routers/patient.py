@@ -9,6 +9,7 @@ from backend.services.ai_engine import ai_service
 from backend.services.integrations import integration_service
 from backend.services.socket_manager import socket_manager
 from backend.security import encrypt_pii
+from backend.services.ai_engine import get_ai_response
 
 router = APIRouter(prefix="/patient", tags=["Patient Operations"])
 
@@ -207,3 +208,15 @@ def get_my_appointments(patient_id: int, db: Session = Depends(get_db)):
 def get_my_prescriptions(patient_id: int, db: Session = Depends(get_db)):
     prescriptions = db.query(Prescription).filter(Prescription.patient_id == patient_id).all()
     return prescriptions
+
+@router.post("/chat")
+def chat_with_ai(request: ChatRequest):
+    # This now calls the Groq version
+    response_text = get_ai_response(request.message, request.history)
+    
+    # Simple keyword check for booking button trigger
+    recommend_action = "none"
+    if "book" in response_text.lower() or "appointment" in response_text.lower():
+        recommend_action = "book_appointment"
+
+    return {"response": response_text, "recommend_action": recommend_action}
