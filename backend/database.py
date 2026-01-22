@@ -1,21 +1,37 @@
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, JSON, Text, Enum
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from datetime import datetime
 import enum
 
-# 1. Database Connection
-DATABASE_URL = "postgresql://admin:admin@localhost:5433/healthcare_db"
+# --- 1. Database Connection Logic (Updated for Render) ---
 
-engine = create_engine(DATABASE_URL)
+# Get DB URL from environment variable (Render) OR use a local fallback
+# Note: I changed the fallback to SQLite ('sqlite:///./database.db') so it works 
+# instantly on any machine without needing a local Postgres server running.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+
+# Fix for Render's Postgres URL (it starts with 'postgres://' but SQLAlchemy needs 'postgresql://')
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Create Engine
+if "sqlite" in DATABASE_URL:
+    # SQLite specific args
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    # Postgres configuration (Render)
+    engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 2. Enums (Fixed Options)
+# --- 2. Enums (Fixed Options) ---
 class UserRole(str, enum.Enum):
     PATIENT = "patient"
     DOCTOR = "doctor"
     ADMIN = "admin"
-    LAB = "lab"             # NEW
+    LAB = "lab"
     PHARMACIST = "pharmacist"
 
 class AppointmentStatus(str, enum.Enum):
@@ -23,6 +39,7 @@ class AppointmentStatus(str, enum.Enum):
     CONFIRMED = "confirmed"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    RESCHEDULED = "rescheduled"  # Added based on your previous robust features
 
 class OrderStatus(str, enum.Enum):
     PROCESSING = "processing"
@@ -30,7 +47,7 @@ class OrderStatus(str, enum.Enum):
     READY = "ready"
     DELIVERED = "delivered"
 
-# 3. Tables
+# --- 3. Tables ---
 
 class User(Base):
     __tablename__ = "users"
@@ -60,14 +77,17 @@ class Appointment(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("users.id"))
-    doctor_id = Column(Integer, ForeignKey("users.id"))
+    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Nullable for Lab Tests that don't have a specific doctor yet
     
     appointment_time = Column(DateTime)
     status = Column(String, default=AppointmentStatus.PENDING)
-    type = Column(String) # "online" or "clinic"
+    type = Column(String) # "online", "clinic", or "lab_test"
     zoom_link = Column(String, nullable=True)
     symptoms_summary = Column(Text, nullable=True) # Summary from Chatbot
     
+    # Added "doctor_name" field which you used in your frontend logic for Lab Tests (e.g., storing "Home Collection")
+    doctor_name = Column(String, nullable=True) 
+
     patient = relationship("User", foreign_keys=[patient_id], back_populates="appointments")
     doctor = relationship("User", foreign_keys=[doctor_id], back_populates="doctor_appointments")
 
@@ -92,7 +112,7 @@ class AuditLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     details = Column(String)
 
-# 4. Dependency to get DB Session
+# --- 4. Dependency to get DB Session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -100,7 +120,7 @@ def get_db():
     finally:
         db.close()
 
-# 5. Create Tables Function
+# --- 5. Create Tables Function ---
 def create_tables():
     Base.metadata.create_all(bind=engine)
     print("✅ Database Tables Created Successfully")
