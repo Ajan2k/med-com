@@ -39,7 +39,7 @@ class AIEngine:
             )
         else:
             self.llm = None
-            print("⚠️ WARNING: Groq API Key missing. AI features will not work.")
+            print(" WARNING: Groq API Key missing. AI features will not work.")
 
     def analyze_symptoms(self, user_query: str):
         """

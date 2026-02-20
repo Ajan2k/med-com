@@ -25,7 +25,7 @@ async def update_status(
     new_time: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    print(f"🔄 ADMIN UPDATE: {item_type} #{item_id} -> {new_status}")
+    print(f" ADMIN UPDATE: {item_type} #{item_id} -> {new_status}")
 
     if item_type == "appointment":
         appt = db.query(Appointment).filter(Appointment.id == item_id).first()
@@ -40,9 +40,9 @@ async def update_status(
                 new_dt_str = f"{new_date} {new_time}"
                 new_dt = datetime.strptime(new_dt_str, "%Y-%m-%d %H:%M")
                 appt.appointment_time = new_dt
-                print(f"   ✅ Rescheduled to {new_dt}")
+                print(f"    Rescheduled to {new_dt}")
             except Exception as e:
-                print(f"   ❌ Date Parse Error: {e}")
+                print(f"    Date Parse Error: {e}")
 
         db.commit()
         

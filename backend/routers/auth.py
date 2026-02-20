@@ -51,7 +51,7 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": user.email, "role": user.role, "id": user.id})
     
     # DEBUG PRINT
-    print(f"✅ LOGIN SUCCESS: User {user.full_name} (ID: {user.id})")
+    print(f" LOGIN SUCCESS: User {user.full_name} (ID: {user.id})")
 
     return {
         "access_token": access_token, 

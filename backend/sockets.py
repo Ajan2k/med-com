@@ -12,7 +12,7 @@ class SocketManager:
         """
         Sends a 'new_appointment' event to all connected clients (Frontend & Admin).
         """
-        print(f"📡 SOCKET BROADCAST: {message}")
+        print(f" SOCKET BROADCAST: {message}")
         await self.server.emit('new_appointment', {'message': message})
 
 # Initialize the Manager

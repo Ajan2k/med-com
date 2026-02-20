@@ -123,7 +123,7 @@ def get_db():
 # --- 5. Create Tables Function ---
 def create_tables():
     Base.metadata.create_all(bind=engine)
-    print("✅ Database Tables Created Successfully")
+    print(" Database Tables Created Successfully")
 
 if __name__ == "__main__":
     create_tables()

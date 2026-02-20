@@ -14,9 +14,9 @@ def send_email_notification(email: str, subject: str, body: str):
     """
     Simulates sending an email (takes 5 seconds).
     """
-    print(f"📧 SENDING EMAIL TO {email}...")
+    print(f" SENDING EMAIL TO {email}...")
     time.sleep(5) # Simulate delay
-    print(f"✅ EMAIL SENT: {subject}")
+    print(f" EMAIL SENT: {subject}")
     return "Done"
 
 @celery_app.task
@@ -24,7 +24,7 @@ def generate_lab_report(patient_id: str):
     """
     Simulates generating a PDF report.
     """
-    print(f"📄 Generating PDF for {patient_id}...")
+    print(f" Generating PDF for {patient_id}...")
     time.sleep(10)
-    print("✅ PDF Generated.")
+    print(" PDF Generated.")
     return "report.pdf"

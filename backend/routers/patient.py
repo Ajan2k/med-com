@@ -35,7 +35,7 @@ def health_chat(request: ChatRequest):
     analysis = ai_service.analyze_symptoms(request.message)
     if analysis.get("danger_level") == "High":
         return {
-            "response": f"⚠️ ALERT: Your symptoms indicate high urgency ({analysis['department']}). Please book an appointment immediately.",
+            "response": f" ALERT: Your symptoms indicate high urgency ({analysis['department']}). Please book an appointment immediately.",
             "recommend_action": "book_appointment",
             "department": analysis['department']
         }
@@ -63,7 +63,7 @@ def get_doctors(department: str = None, db: Session = Depends(get_db)):
         })
         
     return result
-    return result
+
 
 @router.get("/slots")
 def get_available_slots(doctor_id: int, date_str: str, db: Session = Depends(get_db)):
@@ -209,14 +209,3 @@ def get_my_prescriptions(patient_id: int, db: Session = Depends(get_db)):
     prescriptions = db.query(Prescription).filter(Prescription.patient_id == patient_id).all()
     return prescriptions
 
-@router.post("/chat")
-def chat_with_ai(request: ChatRequest):
-    # This now calls the Groq version
-    response_text = get_ai_response(request.message, request.history)
-    
-    # Simple keyword check for booking button trigger
-    recommend_action = "none"
-    if "book" in response_text.lower() or "appointment" in response_text.lower():
-        recommend_action = "book_appointment"
-
-    return {"response": response_text, "recommend_action": recommend_action}

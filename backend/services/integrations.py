@@ -22,7 +22,7 @@ class IntegrationService:
         meeting_id = "123456789"
         join_url = f"[https://zoom.us/j/](https://zoom.us/j/){meeting_id}?pwd=secure_hash"
         
-        print(f"✅ ZOOM: Created meeting '{topic}' at {start_time}")
+        print(f" ZOOM: Created meeting '{topic}' at {start_time}")
         return join_url
 
     # --- OCR SERVICE (Prescription Reading) ---
@@ -45,7 +45,7 @@ class IntegrationService:
     # --- NOTIFICATIONS (SMS/Email) ---
     def send_notification(self, contact: str, message: str, method="email"):
         # Placeholder for Twilio / SendGrid
-        print(f"🔔 NOTIFICATION sent to {contact}: {message}")
+        print(f" NOTIFICATION sent to {contact}: {message}")
         return True
 
 integration_service = IntegrationService()
