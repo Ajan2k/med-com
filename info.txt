@@ -17,3 +17,4 @@ sarah@hospital.com / doc123
 admin@hospital.com / admin123
 lab@hospital.com / staff123
 pharma@hospital.com / staff123
+adhi@hospital.com / admin123

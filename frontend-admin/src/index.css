@@ -7,3 +7,14 @@ body {
   font-family: 'Plus Jakarta Sans', sans-serif;
   @apply bg-slate-50 text-slate-900;
 }
+
+@media print {
+  body {
+    background-color: white !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  @page {
+    margin: 0;
+  }
+}

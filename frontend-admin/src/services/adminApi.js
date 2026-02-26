@@ -14,15 +14,18 @@ export const adminAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   getAppointments: () => api.get('/admin/appointments'),
   getPharmacyOrders: () => api.get('/admin/pharmacy_queue'),
-  
+
   // UPDATED FUNCTION: Accepts extraData object
-  updateStatus: (type, id, status, extraData = {}) => api.post(`/admin/update_status`, null, { 
-    params: { 
-        item_type: type, 
-        item_id: id, 
-        new_status: status,
-        new_date: extraData.date, // Send Date
-        new_time: extraData.time  // Send Time
-    } 
+  updateStatus: (type, id, status, extraData = {}) => api.post(`/admin/update_status`, null, {
+    params: {
+      item_type: type,
+      item_id: id,
+      new_status: status,
+      new_date: extraData.date, // Send Date
+      new_time: extraData.time  // Send Time
+    }
   }),
+
+  // FETCH INVENTORY
+  getMedicines: () => api.get('/pharmacy/medicines'),
 };
