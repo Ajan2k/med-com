@@ -2,8 +2,25 @@ import { useState, useEffect } from 'react';
 import { adminAPI } from '../services/adminApi';
 import io from 'socket.io-client';
 import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
+
+// --- SUB-COMPONENTS ---
+const SidebarItem = ({ id, Icon, label, count, visible, activeTab, setActiveTab }) => { // eslint-disable-line no-unused-vars
+    if (!visible) return null;
+    return (
+        <button
+            onClick={() => setActiveTab(id)}
+            className={`w-full flex items-center justify-between p-3.5 rounded-2xl mb-2 transition-all duration-300 font-medium ${activeTab === id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/30 font-bold tracking-wide' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white hover:translate-x-1'}`}
+        >
+            <div className="flex items-center gap-3">
+                <Icon size={20} className={activeTab === id ? "text-white" : "text-slate-50"} />
+                <span className="text-sm">{label}</span>
+            </div>
+            {count > 0 && <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${activeTab === id ? 'bg-white text-blue-600 shadow-sm' : 'bg-red-500 text-white'}`}>{count}</span>}
+        </button>
+    );
+};
 
 // --- MOCK ANALYTICS DATA ---
 const revenueData = [
@@ -44,7 +61,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const socket = io(API_URL);
 
 const Dashboard = ({ onLogout }) => {
-    const [activeTab, setActiveTab] = useState('overview');
+    const role = localStorage.getItem('admin_role') || 'admin';
+    const [activeTab, setActiveTab] = useState(() => {
+        if (role === 'doctor') return 'appointments';
+        if (role === 'lab') return 'lab';
+        if (role === 'pharmacist') return 'pharmacy';
+        return 'overview';
+    });
     const [appointments, setAppointments] = useState([]);
     const [orders, setOrders] = useState([]);
     const [inventory, setInventory] = useState([]); // New state for medicines
@@ -56,29 +79,7 @@ const Dashboard = ({ onLogout }) => {
     const [rescheduleDate, setRescheduleDate] = useState('');
     const [rescheduleTime, setRescheduleTime] = useState('');
 
-    // BILLING & INVOICE STATE
-    const [selectedInvoice, setSelectedInvoice] = useState(null);
-
     const adminName = localStorage.getItem('admin_name') || 'Staff';
-    const role = localStorage.getItem('admin_role') || 'admin';
-
-    // --- INITIAL SETUP ---
-    useEffect(() => {
-        if (role === 'doctor') setActiveTab('appointments');
-        else if (role === 'lab') setActiveTab('lab');
-        else if (role === 'pharmacist') setActiveTab('pharmacy');
-
-        fetchData();
-
-        socket.on('new_appointment', () => {
-            try {
-                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                audio.play().catch(e => console.log("Audio blocked"));
-            } catch (e) { }
-            fetchData();
-        });
-        return () => socket.off('new_appointment');
-    }, [role]);
 
     const fetchData = async () => {
         try {
@@ -101,10 +102,26 @@ const Dashboard = ({ onLogout }) => {
                 pharmacy: rxData.filter(o => o.status === 'preparing').length,
                 inventory: invData.length // Total medicines in stock
             });
-        } catch (e) {
-            console.error("Data Load Error", e);
+        } catch (error) {
+            console.error("Data Load Error", error);
         }
     };
+
+    // --- INITIAL SETUP ---
+    useEffect(() => {
+        fetchData(); // eslint-disable-line react-hooks/set-state-in-effect
+
+        socket.on('new_appointment', () => {
+            try {
+                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                audio.play().catch(() => console.log("Audio blocked"));
+            } catch { /* Audio blocked */ }
+            fetchData();
+        });
+        return () => socket.off('new_appointment');
+    }, []);
+
+
 
     const handleStatus = async (type, id, status) => {
         try {
@@ -122,28 +139,13 @@ const Dashboard = ({ onLogout }) => {
             setRescheduleDate(''); // Reset fields
             setRescheduleTime('');
             fetchData(); // Refresh table
-        } catch (e) {
+        } catch (error) {
+            console.error(error);
             alert("Action Failed. Check console.");
-            console.error(e);
         }
     };
 
-    // --- SUB-COMPONENTS ---
-    const SidebarItem = ({ id, icon: Icon, label, count, visible }) => {
-        if (!visible) return null;
-        return (
-            <button
-                onClick={() => setActiveTab(id)}
-                className={`w-full flex items-center justify-between p-3.5 rounded-2xl mb-2 transition-all duration-300 font-medium ${activeTab === id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/30 font-bold tracking-wide' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white hover:translate-x-1'}`}
-            >
-                <div className="flex items-center gap-3">
-                    <Icon size={20} className={activeTab === id ? "text-white" : "text-slate-500"} />
-                    <span className="text-sm">{label}</span>
-                </div>
-                {count > 0 && <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${activeTab === id ? 'bg-white text-blue-600 shadow-sm' : 'bg-red-500 text-white'}`}>{count}</span>}
-            </button>
-        );
-    };
+
 
     return (
         <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden relative">
@@ -167,12 +169,12 @@ const Dashboard = ({ onLogout }) => {
                         <p className="px-3 text-xs font-bold text-slate-500 uppercase mb-2 mt-4">Workspace</p>
 
                         {/* STRICT ROLE FILTERING */}
-                        <SidebarItem id="analytics" icon={BarChartIcon} label="Analytics" count={0} visible={role === 'admin'} />
-                        <SidebarItem id="appointments" icon={Calendar} label="Appointments" count={stats.doctors} visible={role === 'doctor' || role === 'admin'} />
-                        <SidebarItem id="lab" icon={Activity} label="Lab Queue" count={stats.lab} visible={role === 'lab' || role === 'admin'} />
-                        <SidebarItem id="pharmacy" icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={role === 'pharmacist' || role === 'admin'} />
-                        <SidebarItem id="inventory" icon={Package} label="Inventory" count={stats.inventory} visible={role === 'pharmacist' || role === 'admin'} />
-                        <SidebarItem id="billing" icon={Receipt} label="Billing & Invoices" count={0} visible={role === 'admin'} />
+                        <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={role === 'doctor' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={role === 'lab' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={role === 'pharmacist' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={role === 'pharmacist' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
                     </div>
                 </div>
 
@@ -212,7 +214,7 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* OVERVIEW TAB */}
                     {activeTab === 'overview' && (
-                        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
 
                             {/* WELCOME HERO BANNER */}
                             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-[2rem] p-10 text-white shadow-2xl shadow-indigo-500/20 relative overflow-hidden flex justify-between items-center group">
@@ -276,12 +278,12 @@ const Dashboard = ({ onLogout }) => {
                                     </div>
                                 </div>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* ANALYTICS TAB */}
                     {activeTab === 'analytics' && (
-                        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
 
                             {/* KPI CARDS */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -395,7 +397,7 @@ const Dashboard = ({ onLogout }) => {
                                 </div>
 
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* OVERVIEW - RECENT ACTIVITY SUMMARY */}
@@ -449,7 +451,7 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* BILLING & INVOICING TAB */}
                     {activeTab === 'billing' && (
-                        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
 
                             {/* BILLING KPI HEADER */}
                             <div className="flex flex-wrap gap-4 mb-4">
@@ -507,7 +509,7 @@ const Dashboard = ({ onLogout }) => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                         {mockBillingData.map((txn) => (
-                                            <tr key={txn.id} onClick={() => setSelectedInvoice(txn)} className="hover:bg-white cursor-pointer group transition-colors">
+                                            <tr key={txn.id} className="hover:bg-white cursor-pointer group transition-colors">
                                                 <td className="p-5 whitespace-nowrap">
                                                     <span className="font-bold text-slate-700 bg-slate-100/50 px-3 py-1.5 rounded-lg group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">{txn.id}</span>
                                                 </td>
@@ -531,12 +533,12 @@ const Dashboard = ({ onLogout }) => {
                                     </tbody>
                                 </table>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* DOCTOR VIEW: WEEKLY CALENDAR SCHEDULE */}
                     {activeTab === 'appointments' && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
 
                             {/* Calendar Header / Tool Bar */}
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -588,7 +590,7 @@ const Dashboard = ({ onLogout }) => {
                                     {/* APPOINTMENT BLOCKS (Absolutely positioned over the grid) */}
                                     <div className="absolute top-0 left-[80px] right-0 bottom-0 pointer-events-none">
 
-                                        {appointments.filter(a => a.type !== 'lab_test').map((appt, i) => {
+                                        {appointments.filter(a => a.type !== 'lab_test').map((appt) => {
 
                                             // Mock Logic: We randomly distribute the parsed real appointments onto the grid for visual flair.
                                             // In a real app, this calculates Top/Left based on appt.appointment_time
@@ -647,12 +649,12 @@ const Dashboard = ({ onLogout }) => {
 
                                 </div>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* LAB VIEW: TEST REQUESTS */}
                     {activeTab === 'lab' && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-6">
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-6">
                             {appointments.filter(a => a.type === 'lab_test').map(test => {
                                 const isHome = test.doctor_name && test.doctor_name.includes("Home Collection");
                                 return (
@@ -674,12 +676,12 @@ const Dashboard = ({ onLogout }) => {
                                 );
                             })}
                             {appointments.filter(a => a.type === 'lab_test').length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No pending lab tests.</div>}
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* PHARMACY VIEW */}
                     {activeTab === 'pharmacy' && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-8">
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-8">
                             {orders.map(order => (
                                 <div key={order.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
                                     <div className="flex justify-between mb-4">
@@ -696,12 +698,12 @@ const Dashboard = ({ onLogout }) => {
                                 </div>
                             ))}
                             {orders.length === 0 && <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>}
-                        </motion.div>
+                        </Motion.div>
                     )}
 
                     {/* INVENTORY VIEW */}
                     {activeTab === 'inventory' && (
-                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-white overflow-hidden">
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-white overflow-hidden">
                             <div className="p-6 border-b border-slate-100/60 bg-slate-50/50 flex justify-between items-center">
                                 <h3 className="font-bold text-slate-800 text-lg">Product Inventory</h3>
                                 <span className="text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-1.5 rounded-full shadow-sm">{inventory.length} Items Listed</span>
@@ -756,7 +758,7 @@ const Dashboard = ({ onLogout }) => {
                                 </table>
                             </div>
                             {inventory.length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No products found in inventory.</div>}
-                        </motion.div>
+                        </Motion.div>
                     )}
 
 
@@ -767,7 +769,7 @@ const Dashboard = ({ onLogout }) => {
             <AnimatePresence>
                 {selectedAppt && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
+                        <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
 
                             {/* MODAL HEADER */}
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -823,7 +825,7 @@ const Dashboard = ({ onLogout }) => {
                                     <AlertCircle size={16} /> Cancel Request
                                 </button>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     </div>
                 )}
             </AnimatePresence>
@@ -832,7 +834,7 @@ const Dashboard = ({ onLogout }) => {
             <AnimatePresence>
                 {selectedInventory && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
+                        <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
 
                             {/* MODAL HEADER */}
                             <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50">
@@ -877,7 +879,7 @@ const Dashboard = ({ onLogout }) => {
                                     Close Details
                                 </button>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     </div>
                 )}
             </AnimatePresence>
