@@ -26,6 +26,13 @@ class SocketManager:
         """
         await self.server.emit('status_update', status_data)
 
+    async def broadcast(self, message: str):
+        """
+        Generic broadcaster for status messages.
+        """
+        print(f" SOCKET BROADCAST: {message}")
+        await self.server.emit('new_appointment', {'message': message})
+
 socket_manager = SocketManager()
 
 # Register Event Handlers

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.database import get_db, Appointment, Prescription
-from backend.sockets import manager
+from backend.services.socket_manager import socket_manager as manager
 from typing import Optional
 from datetime import datetime
 
