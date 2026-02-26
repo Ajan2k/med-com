@@ -2,3 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 body { background-color: #f1f5f9; }
+
+@media print {
+    body {
+        background-color: white !important;
+        -webkit-print-color-adjust: exact;
+    }
+    @page { margin: 0; }
+}
