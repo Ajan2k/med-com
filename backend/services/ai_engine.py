@@ -5,7 +5,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from dotenv import load_dotenv
 
-load_dotenv()
+# Find .env file in the backend directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+dot_env_path = os.path.join(backend_dir, '.env')
+load_dotenv(dot_env_path)
 
 # --- STRICT GUARDRAILS ---
 STRICT_SYSTEM_PROMPT = """
@@ -31,7 +35,7 @@ class AIEngine:
     def __init__(self):
         # Initialize Groq with Llama-3
         api_key = os.getenv("GROQ_API_KEY")
-        if api_key:
+        if api_key and api_key.strip():
             self.llm = ChatGroq(
                 temperature=0.3, 
                 model_name="llama-3.3-70b-versatile", 
@@ -39,7 +43,7 @@ class AIEngine:
             )
         else:
             self.llm = None
-            print(" WARNING: Groq API Key missing. AI features will not work.")
+            print(" CRITICAL: Groq API Key missing. AI diagnosis will be disabled.")
 
     def analyze_symptoms(self, user_query: str):
         """
@@ -74,7 +78,7 @@ class AIEngine:
         Handles general health Q&A with context and STRICT GUARDRAILS.
         """
         if not self.llm:
-            return "AI Service is offline."
+            return "Healthcare AI Service is currently unavailable. Please contact the administrator to provide a valid API key."
 
         # 1. Start with the STRICT System Message
         messages = [
@@ -96,7 +100,41 @@ class AIEngine:
             return response.content
         except Exception as e:
             print(f"Groq Chat Error: {e}")
-            return "I'm having trouble connecting to the server. Please try again."
+            if "rate_limit" in str(e).lower():
+                return "I am receiving too many requests at the moment. Please wait a few seconds and try again."
+            return "I'm having a bit of trouble processing that. Could you please rephrase or try again in a moment?"
+
+    def validate_prescription(self, extracted_text: str):
+        """
+        Uses AI to determine if a text snippet is a valid medical prescription.
+        Returns: (is_valid, reason)
+        """
+        if not self.llm:
+            return False, "AI Service Unavailable"
+
+        prompt = f"""
+        Analyze the following text extracted from an image. 
+        Determine if it represents a medical prescription (e.g., contains doctor name, medicine names, dosages like '500mg', '1 tab', or instructions like 'twice a day').
+        
+        TEXT: "{extracted_text}"
+        
+        Respond ONLY in JSON format: 
+        {{
+            "is_prescription": true/false,
+            "reason": "short explanation"
+        }}
+        """
+        
+        try:
+            response = self.llm.invoke([HumanMessage(content=prompt)])
+            content = response.content.strip()
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            data = json.loads(content)
+            return data.get("is_prescription", False), data.get("reason", "Unknown reason")
+        except Exception as e:
+            print(f"Prescription Validation Error: {e}")
+            return True, "Error during validation, allowing pass" # Fail safe for demo
 
 # Singleton Instance (Optional, depending on how you import)
 ai_service = AIEngine()

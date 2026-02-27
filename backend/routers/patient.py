@@ -28,6 +28,8 @@ class AppointmentRequest(BaseModel):
 class LabRequest(BaseModel):
     patient_id: int
     test_name: str
+    date_str: Optional[str] = None
+    time_slot: Optional[str] = None
 
 # --- 1. HEALTH CHAT ---
 @router.post("/chat")
@@ -46,20 +48,17 @@ def health_chat(request: ChatRequest):
 # --- 2. APPOINTMENT BOOKING ---
 @router.get("/doctors")
 def get_doctors(department: str = None, db: Session = Depends(get_db)):
-    doctors = db.query(User).filter(User.role == "doctor").all()
+    query = db.query(User).filter(User.role == "doctor")
+    if department:
+        query = query.filter(User.department == department)
+    doctors = query.all()
     
     result = []
     for doc in doctors:
-        # LOGIC TO ASSIGN DEPARTMENT BASED ON NAME (Since we reset the DB)
-        dept = "General"
-        if "Bond" in doc.full_name: dept = "Cardiology"
-        elif "House" in doc.full_name: dept = "Neurology"
-        elif "Strange" in doc.full_name: dept = "Orthopedics"
-        
         result.append({
             "id": doc.id,
             "full_name": doc.full_name,
-            "department": dept 
+            "department": doc.department or "General"
         })
         
     return result
@@ -67,10 +66,12 @@ def get_doctors(department: str = None, db: Session = Depends(get_db)):
 
 @router.get("/slots")
 def get_available_slots(doctor_id: int, date_str: str, db: Session = Depends(get_db)):
-    # 1. Define Business Hours (09:00 to 17:00)
+    # 1. Define Business Hours (09:00 to 20:00)
     slots = [
         "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-        "12:00", "12:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30"
+        "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", 
+        "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+        "18:00", "18:30", "19:00", "19:30"
     ]
     
     # 2. Get Taken Slots from DB
@@ -87,6 +88,8 @@ def get_available_slots(doctor_id: int, date_str: str, db: Session = Depends(get
     # 3. Filter Logic
     final_slots = []
     now = datetime.now()
+    
+    # Check if testing with hardcoded date from my script or actual today
     check_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     
     for slot in slots:
@@ -152,6 +155,43 @@ async def upload_prescription(
     contents = await file.read()
     extracted_text = integration_service.extract_text_from_image(contents)
     
+    # --- STEP 1: Fast Keyword Validation (Basic "Training") ---
+    medical_keywords = [
+        "mg", "tablet", "cap", "rx", "medicine", "dosage", "dr.", "patient", "clinic", 
+        "hospital", "twice", "daily", "syrup", "capsule", "injection", "ointment", 
+        "morning", "evening", "night", "before food", "after food", "qty", "dose"
+    ]
+    text_lower = extracted_text.lower()
+    keyword_matches = [kw for kw in medical_keywords if kw in text_lower]
+    
+    # --- STEP 2: AI Deep Analysis (Advanced "Training") ---
+    # We only use AI if keyword check is ambiguous (between 1 and 3 matches) 
+    # OR if we want to be absolutely sure.
+    # --- STEP 1: Fast Keyword Validation (Basic "Training") ---
+    medical_keywords = [
+        "mg", "tablet", "cap", "rx", "medicine", "dosage", "dr.", "patient", "clinic", 
+        "hospital", "twice", "daily", "syrup", "capsule", "injection", "ointment", 
+        "morning", "evening", "night", "before food", "after food", "qty", "dose"
+    ]
+    text_lower = extracted_text.lower()
+    keyword_matches = [kw for kw in medical_keywords if kw in text_lower]
+    
+    # --- STEP 2: AI Deep Analysis (Advanced "Training") ---
+    is_medical = len(keyword_matches) >= 2 # Basic threshold
+    reason = "Matched medical keywords"
+
+    if not is_medical:
+        # Ask AI to decide
+        ai_is_medical, ai_reason = ai_service.validate_prescription(extracted_text)
+        is_medical = ai_is_medical
+        reason = ai_reason
+
+    if not is_medical:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid Upload: {reason}. Please upload a professional medical prescription."
+        )
+
     # Encrypt data
     encrypted_data = encrypt_pii(extracted_text) if extracted_text else encrypt_pii("No text detected")
     
@@ -169,17 +209,26 @@ async def upload_prescription(
 @router.post("/book_lab")
 def book_lab_test(req: LabRequest, db: Session = Depends(get_db)):
     # specific handling for lab tests
+    
+    appt_time = datetime.now() + timedelta(days=1) # Fallback
+    if req.date_str and req.time_slot:
+        try:
+            appt_time = datetime.strptime(f"{req.date_str} {req.time_slot}", "%Y-%m-%d %H:%M")
+        except:
+            pass
+
     new_appt = Appointment(
         patient_id=req.patient_id,
         doctor_id=None, # No specific doctor for lab
-        appointment_time=datetime.now() + timedelta(days=1), # Mock time: tomorrow
+        appointment_time=appt_time,
         type="lab_test", # Special type
+        doctor_name="Lab Technician", # Storing this for display logic
         zoom_link=None,
         status="confirmed"
     )
     db.add(new_appt)
     db.commit()
-    return {"message": "Lab Test Booked", "test_name": req.test_name}
+    return {"message": "Lab Test Booked", "test_name": req.test_name, "time": appt_time.strftime("%b %d, %H:%M")}
 
 # --- UPDATE: My Appointments to include Lab Tests ---
 @router.get("/my_appointments/{patient_id}")

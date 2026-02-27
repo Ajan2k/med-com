@@ -39,8 +39,8 @@ class IntegrationService:
             return text.strip()
         except Exception as e:
             print(f"OCR Note: Tesseract not found. Using simulation. ({e})")
-            # Fallback for demo
-            return "Simulated: Amoxicillin 500mg, Paracetamol (OCR Missing)"
+            # Return a neutral message. Validation logic in the router will handle the "is it a prescription" check via AI or keywords.
+            return "V2_VALIDATION_ERROR: No clear medical text detected in the image. Please ensure the prescription is well-lit and legible."
 
     # --- NOTIFICATIONS (SMS/Email) ---
     def send_notification(self, contact: str, message: str, method="email"):

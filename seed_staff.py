@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from backend.database import SessionLocal, User, UserRole
 from backend.security import get_password_hash
 
@@ -8,7 +12,7 @@ staff_accounts = [
     {"name": "Main Pharmacy", "email": "pharma@hospital.com", "role": UserRole.PHARMACIST}
 ]
 
-print("👷 Creating Staff Accounts...")
+print("Creating Staff Accounts...")
 
 for account in staff_accounts:
     # Check if exists
@@ -23,9 +27,9 @@ for account in staff_accounts:
             patient_uid=None
         )
         db.add(user)
-        print(f"✅ Created {account['name']} ({account['email']})")
+        print(f"Created {account['name']} ({account['email']})")
     else:
-        print(f"⚠️ {account['name']} already exists.")
+        print(f"{account['name']} already exists.")
 
 db.commit()
 db.close()

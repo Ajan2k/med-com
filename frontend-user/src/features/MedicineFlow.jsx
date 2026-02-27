@@ -6,9 +6,18 @@ const MedicineFlow = ({ onBack }) => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [result, setResult] = useState(null);
+    const [error, setError] = useState(null);
 
     const handleFileChange = (e) => {
-        if (e.target.files[0]) setFile(e.target.files[0]);
+        const selectedFile = e.target.files[0];
+        if (selectedFile) {
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+            if (!allowedTypes.includes(selectedFile.type)) {
+                alert("Only JPG, PNG and PDF files are allowed.");
+                return;
+            }
+            setFile(selectedFile);
+        }
     };
 
     const handleUpload = async () => {
@@ -23,8 +32,11 @@ const MedicineFlow = ({ onBack }) => {
         try {
             const { data } = await patientAPI.uploadPrescription(formData);
             setResult(data);
-        } catch {
-            alert("Upload Failed");
+            setError(null);
+        } catch (error) {
+            console.error(error);
+            const msg = error.response?.data?.detail || "Invalid Upload: Document does not appear to be a prescription.";
+            setError(msg);
         } finally {
             setUploading(false);
         }
@@ -38,7 +50,7 @@ const MedicineFlow = ({ onBack }) => {
                     <p className="text-slate-500 mb-8">We will extract the medicines and check stock.</p>
 
                     <div className="border-2 border-dashed border-teal-200 rounded-xl p-10 bg-teal-50/50 hover:bg-teal-50 transition-colors relative">
-                        <input type="file" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" />
+                        <input type="file" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,.pdf" />
                         <div className="flex flex-col items-center gap-3">
                             <Upload size={40} className="text-teal-400" />
                             <span className="text-teal-700 font-medium">{file ? file.name : "Click to Upload Image"}</span>
@@ -50,6 +62,16 @@ const MedicineFlow = ({ onBack }) => {
                     </button>
                     <button onClick={onBack} className="mt-4 text-sm text-slate-400 hover:text-slate-600">Cancel</button>
                 </>
+            ) : error ? (
+                <div className="text-center py-6">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <X size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800">Invalid Upload</h3>
+                    <p className="text-slate-500 mt-2 mb-6 px-4">{error}</p>
+                    <button onClick={() => { setError(null); setFile(null); }} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">Try Another Image</button>
+                    <button onClick={onBack} className="block w-full mt-4 text-sm text-slate-400 font-medium">Cancel and Exit</button>
+                </div>
             ) : (
                 <div className="text-center">
                     <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">

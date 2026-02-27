@@ -58,6 +58,7 @@ class User(Base):
     hashed_password = Column(String)
     role = Column(String, default=UserRole.PATIENT)
     phone = Column(String, nullable=True)
+    department = Column(String, nullable=True) # New field for doctors
     
     # Patient Specifics
     patient_uid = Column(String, unique=True, nullable=True) # The "PAT-2026-X92" ID

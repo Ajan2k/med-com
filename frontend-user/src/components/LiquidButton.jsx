@@ -1,8 +1,7 @@
-// eslint-disable-next-line no-unused-vars
 import { motion as Motion } from "framer-motion";
 
-// eslint-disable-next-line no-unused-vars
-const LiquidButton = ({ icon: Icon, label, onClick }) => {
+const LiquidButton = ({ icon, label, onClick }) => {
+  const Icon = icon;
   return (
     <Motion.button
       whileHover={{ y: -2, backgroundColor: "#ffffff" }}

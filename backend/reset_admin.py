@@ -1,4 +1,7 @@
-# reset_admin.py
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from backend.database import SessionLocal, User, UserRole
 from backend.security import get_password_hash
 

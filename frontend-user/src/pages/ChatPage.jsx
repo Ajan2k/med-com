@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-// eslint-disable-next-line no-unused-vars
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
     MessageSquare, Calendar, Pill, Activity, Stethoscope,
     FileText, Send, X, LogOut, ShieldCheck, Video,
     Clock, Check, Brain, ChevronRight, MapPin,
-    Home, Building2, Search, Settings, User, Bell
+    Home, Building2, Search, Settings, User, Bell, Info, Loader
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { patientAPI } from '../services/api';
@@ -21,6 +20,10 @@ const ChatPage = () => {
     const { user, loading, logout } = useAuth();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searching, setSearching] = useState(false);
+    const [preselectedDoctor, setPreselectedDoctor] = useState(null);
 
     const [activeFlow, setActiveFlow] = useState(null);
     const [myAppts, setMyAppts] = useState([]);
@@ -29,15 +32,32 @@ const ChatPage = () => {
     const [labStep, setLabStep] = useState('list');
     const [selectedTest, setSelectedTest] = useState(null);
     const [msgStep, setMsgStep] = useState('compose');
+    const [selectedDept, setSelectedDept] = useState('General');
+    const [consultMsg, setConsultMsg] = useState('');
+
+    const getLocalDate = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const [labDate, setLabDate] = useState(getLocalDate(new Date()));
+    const [labSlots, setLabSlots] = useState([]);
+    const [selectedLabSlot, setSelectedLabSlot] = useState(null);
+    const [labLoading, setLabLoading] = useState(false);
+    const [labMode, setLabMode] = useState(null);
 
     useEffect(() => {
         if (!loading) {
             if (!user) {
-                // eslint-disable-next-line react-hooks/set-state-in-effect
-                setMessages([{ role: 'bot', content: "Welcome to MediCare. Please sign in to access your health records.", type: 'login' }]);
+                setTimeout(() => {
+                    setMessages([{ role: 'bot', content: "Welcome to MediCare. Please sign in to access your health records.", type: 'login' }]);
+                }, 0);
             } else {
-                // eslint-disable-next-line react-hooks/set-state-in-effect
-                setMessages([{ role: 'bot', content: `Hello ${user.name}. I am your dedicated AI Health Assistant. How can I help you today?`, type: 'menu' }]);
+                setTimeout(() => {
+                    setMessages([{ role: 'bot', content: `Hello ${user.name}. I am your dedicated AI Health Assistant. How can I help you today?`, type: 'menu' }]);
+                }, 0);
             }
         }
     }, [user, loading]);
@@ -64,6 +84,31 @@ const ChatPage = () => {
             }
         } catch {
             setMessages(prev => [...prev, { role: 'bot', content: "Connectivity Issue. Please try again." }]);
+        }
+    };
+
+    const handleActionBook = () => {
+        setPreselectedDoctor(null);
+        setActiveFlow('booking');
+    };
+
+    const handleSearch = async (query) => {
+        setSearchQuery(query);
+        if (query.length < 2) {
+            setSearchResults([]);
+            setSearching(false);
+            return;
+        }
+        setSearching(true);
+        try {
+            const { data } = await patientAPI.getDoctors();
+            const filtered = data.filter(doc =>
+                doc.full_name.toLowerCase().includes(query.toLowerCase()) ||
+                doc.department.toLowerCase().includes(query.toLowerCase())
+            );
+            setSearchResults(filtered);
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -94,14 +139,50 @@ const ChatPage = () => {
     const handleTestSelect = (test) => {
         setSelectedTest(test);
         setLabStep('mode');
-    }
+    };
 
-    const confirmLabBooking = async (mode) => {
+    // Load Lab Slots
+    useEffect(() => {
+        if (labStep === 'slots' && labDate) {
+            const fetchLabSlots = async () => {
+                setLabLoading(true);
+                try {
+                    // ID 10 is the central lab staff
+                    const { data } = await patientAPI.getSlots(10, labDate);
+                    setLabSlots(data.slots || []);
+                    setSelectedLabSlot(null);
+                } catch (e) {
+                    console.error("Error fetching lab slots:", e);
+                    setLabSlots([]);
+                }
+                setLabLoading(false);
+            };
+            fetchLabSlots();
+        }
+    }, [labStep, labDate]);
+
+    const confirmLabBooking = (mode) => {
+        setLabMode(mode);
+        setLabStep('slots');
+    };
+
+    const handleFinalLabBooking = async () => {
+        if (!selectedLabSlot) return;
+        setLabLoading(true);
         try {
-            const finalName = `${selectedTest.name} (${mode})`;
-            await patientAPI.bookLab({ patient_id: user.id, test_name: finalName });
+            const finalName = `${selectedTest.name} (${labMode})`;
+            await patientAPI.bookLab({
+                patient_id: user.id,
+                test_name: finalName,
+                date_str: labDate,
+                time_slot: selectedLabSlot
+            });
             setLabStep('success');
-        } catch { alert("Booking Failed"); }
+        } catch (error) {
+            alert("Booking Failed: " + (error.response?.data?.detail || error.message));
+        } finally {
+            setLabLoading(false);
+        }
     };
 
     const handleHealthQuery = () => {
@@ -111,7 +192,7 @@ const ChatPage = () => {
 
     const renderMenuButtons = () => (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-8 w-full">
-            <LiquidButton icon={Calendar} label="Book Appointment" onClick={() => setActiveFlow('booking')} />
+            <LiquidButton icon={Calendar} label="Book Appointment" onClick={() => { setPreselectedDoctor(null); setActiveFlow('booking'); }} />
             <LiquidButton icon={Pill} label="Order Medicine" onClick={() => setActiveFlow('medicine')} />
             <LiquidButton icon={Activity} label="Lab Tests" onClick={() => { setLabStep('list'); setActiveFlow('lab'); }} />
             <LiquidButton icon={FileText} label="Health Records" onClick={loadStatus} />
@@ -140,7 +221,7 @@ const ChatPage = () => {
                         <button onClick={() => setActiveFlow(null)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${!activeFlow ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
                             <MessageSquare size={20} /> <span className="font-bold text-sm">AI Console</span>
                         </button>
-                        <button onClick={() => setActiveFlow('booking')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeFlow === 'booking' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
+                        <button onClick={() => { setPreselectedDoctor(null); setActiveFlow('booking'); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeFlow === 'booking' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
                             <Calendar size={20} /> <span className="font-bold text-sm">Appointments</span>
                         </button>
                         <button onClick={() => setActiveFlow('medicine')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeFlow === 'medicine' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
@@ -195,7 +276,55 @@ const ChatPage = () => {
                     <div className="flex items-center gap-6">
                         <div className="hidden md:flex relative w-80">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-                            <input type="text" placeholder="Search records, doctors..." className="w-full pl-11 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 transition-all" />
+                            <input
+                                type="text"
+                                placeholder="Search doctors or departments..."
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                className="w-full pl-11 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
+                            />
+                            {/* SEARCH RESULTS DROPDOWN */}
+                            <AnimatePresence>
+                                {searching && searchQuery.length >= 2 && (
+                                    <Motion.div
+                                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                                        className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[400px] overflow-y-auto"
+                                    >
+                                        <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Search Results ({searchResults.length})</span>
+                                            <button onClick={() => { setSearchQuery(''); setSearching(false); }} className="text-slate-400 hover:text-slate-900"><X size={14} /></button>
+                                        </div>
+                                        {searchResults.length > 0 ? (
+                                            <div className="p-2 space-y-1">
+                                                {searchResults.map(doc => (
+                                                    <button
+                                                        key={doc.id}
+                                                        onClick={() => {
+                                                            setActiveFlow('booking');
+                                                            setSearchQuery('');
+                                                            setSearching(false);
+                                                        }}
+                                                        className="w-full p-3 rounded-xl hover:bg-blue-50 transition-all flex items-center gap-3 text-left group"
+                                                    >
+                                                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                                            {doc.full_name[0]}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-900 leading-tight">Dr. {doc.full_name.replace('Dr. ', '')}</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{doc.department}</p>
+                                                        </div>
+                                                        <ChevronRight size={14} className="ml-auto text-slate-300" />
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center">
+                                                <p className="text-xs font-bold text-slate-400">No matching specialists found.</p>
+                                            </div>
+                                        )}
+                                    </Motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                         <div className="flex items-center gap-4 border-l border-slate-100 pl-6">
                             <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Bell size={20} /></button>
@@ -235,7 +364,7 @@ const ChatPage = () => {
                                     {msg.type === 'login' && <div className="mt-4 w-full max-w-sm"><LoginBubble /></div>}
                                     {msg.type === 'menu' && renderMenuButtons()}
                                     {msg.type === 'action_book' && (
-                                        <button onClick={() => setActiveFlow('booking')} className="mt-4 bg-blue-600 text-white px-8 py-3.5 rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center gap-3 active:scale-95">
+                                        <button onClick={handleActionBook} className="mt-4 bg-blue-600 text-white px-8 py-3.5 rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center gap-3 active:scale-95">
                                             Schedule Appointment <ChevronRight size={18} />
                                         </button>
                                     )}
@@ -276,7 +405,7 @@ const ChatPage = () => {
                 {/* FULLSCREEN OVERLAYS (Integrated as Panes) */}
                 <AnimatePresence>
                     {activeFlow && (
-                        <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 200 }} className="absolute inset-0 z-40 bg-[#F8FAFC] flex flex-col">
+                        <Motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 200 }} className="absolute inset-0 z-40 bg-[#F8FAFC] flex flex-col">
                             <header className="h-20 bg-white border-b border-slate-100 flex items-center justify-between px-10 shrink-0">
                                 <div className="flex items-center gap-4">
                                     <button onClick={() => setActiveFlow(null)} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-900 border border-slate-100">
@@ -294,7 +423,7 @@ const ChatPage = () => {
 
                             <div className="flex-1 overflow-y-auto p-10 bg-slate-50/30">
                                 <div className="max-w-5xl mx-auto">
-                                    {activeFlow === 'booking' && <BookingFlow onBack={() => setActiveFlow(null)} />}
+                                    {activeFlow === 'booking' && <BookingFlow initialDoctor={preselectedDoctor} onBack={() => setActiveFlow(null)} />}
                                     {activeFlow === 'medicine' && <MedicineFlow onBack={() => setActiveFlow(null)} />}
 
                                     {/* LAB FLOW */}
@@ -342,11 +471,70 @@ const ChatPage = () => {
                                         </div>
                                     )}
 
+                                    {activeFlow === 'lab' && labStep === 'slots' && (
+                                        <div className="max-w-2xl mx-auto py-10">
+                                            <h3 className="text-3xl font-black text-slate-900 mb-4 text-center">Schedule Your Test</h3>
+                                            <p className="text-slate-500 text-center mb-10">Choose a convenient date and time for your **{selectedTest?.name}** ({labMode}).</p>
+
+                                            <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm space-y-8">
+                                                <div>
+                                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Select Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={labDate}
+                                                        min={getLocalDate(new Date())}
+                                                        onChange={(e) => setLabDate(e.target.value)}
+                                                        className="w-full bg-slate-50 border border-slate-100 p-4 rounded-2xl text-slate-900 font-bold outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Available Slots</label>
+                                                    {labLoading ? (
+                                                        <div className="flex items-center gap-3 text-blue-600 font-bold py-4">
+                                                            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                                            Fetching available times...
+                                                        </div>
+                                                    ) : labSlots.length > 0 ? (
+                                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                                                            {labSlots.map(slot => (
+                                                                <button
+                                                                    key={slot}
+                                                                    onClick={() => setSelectedLabSlot(slot)}
+                                                                    className={`py-3 rounded-xl font-bold text-sm transition-all ${selectedLabSlot === slot
+                                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                                                                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                                                        }`}
+                                                                >
+                                                                    {slot}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-amber-50 text-amber-700 p-4 rounded-2xl text-sm font-bold flex items-center gap-3">
+                                                            <Info size={18} /> No slots available for this date.
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    disabled={!selectedLabSlot || labLoading}
+                                                    onClick={handleFinalLabBooking}
+                                                    className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-50 disabled:grayscale uppercase tracking-widest"
+                                                >
+                                                    {labLoading ? 'Processing Request...' : 'Confirm Appointment'}
+                                                </button>
+                                            </div>
+
+                                            <button onClick={() => setLabStep('mode')} className="w-full text-slate-400 text-sm font-bold mt-10 hover:text-slate-900 transition-colors uppercase tracking-widest">← Back to Collection Mode</button>
+                                        </div>
+                                    )}
+
                                     {activeFlow === 'lab' && labStep === 'success' && (
                                         <div className="text-center py-20 max-w-lg mx-auto">
-                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-8 text-white shadow-2xl shadow-green-200"><Check size={48} strokeWidth={3} /></motion.div>
+                                            <Motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-8 text-white shadow-2xl shadow-green-200"><Check size={48} strokeWidth={3} /></Motion.div>
                                             <h3 className="text-4xl font-black text-slate-900 mb-4">Request Received</h3>
-                                            <p className="text-slate-500 mb-10">We've confirmed your booking. A detailed set of instructions has been sent to your email.</p>
+                                            <p className="text-slate-500 mb-10">We've confirmed your booking for **{selectedLabSlot}** on **{new Date(labDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}**. A detailed set of instructions has been sent to your email.</p>
                                             <button onClick={() => setActiveFlow(null)} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold text-sm shadow-xl hover:bg-blue-600 transition-all active:scale-95 w-full uppercase tracking-widest">Back to Health Console</button>
                                         </div>
                                     )}
@@ -355,7 +543,10 @@ const ChatPage = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                             {myAppts.length === 0 ? <div className="col-span-full text-center py-40 text-slate-400 font-bold text-lg opacity-30">No active history found in vault.</div> : myAppts.map(item => {
                                                 if (item.category === 'appointment') {
-                                                    const docNameDisplay = item.doctor_name.startsWith('Dr.') ? item.doctor_name : `Dr. ${item.doctor_name}`;
+                                                    let docNameDisplay = item.doctor_name;
+                                                    if (!docNameDisplay.startsWith('Dr.') && docNameDisplay !== 'Lab Technician') {
+                                                        docNameDisplay = `Dr. ${docNameDisplay}`;
+                                                    }
                                                     return (
                                                         <div key={`appt-${item.id}`} className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden relative group hover:shadow-xl hover:-translate-y-1 transition-all">
                                                             <div className={`h-1.5 w-full ${item.type === 'lab_test' ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
@@ -430,27 +621,56 @@ const ChatPage = () => {
 
                                     {activeFlow === 'consult' && msgStep === 'compose' && (
                                         <div className="max-w-2xl mx-auto py-10">
-                                            <h3 className="text-3xl font-black text-slate-900 mb-8">Physician Messaging</h3>
-                                            <div className="space-y-6">
+                                            <h3 className="text-3xl font-black text-slate-900 mb-8 tracking-tight">Physician Messaging</h3>
+                                            <div className="space-y-8">
                                                 <div>
-                                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Select Department</label>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <button className="p-4 bg-white border-2 border-blue-500 rounded-2xl font-bold text-blue-600 text-left">Internal Medicine</button>
-                                                        <button className="p-4 bg-white border-2 border-slate-100 rounded-2xl font-bold text-slate-400 text-left hover:border-blue-200">Cardiology</button>
+                                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block ml-1">Select Medical Department</label>
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                        {['General', 'Cardiology', 'Neurology', 'Orthopedics'].map(dept => (
+                                                            <button
+                                                                key={dept}
+                                                                onClick={() => setSelectedDept(dept)}
+                                                                className={`p-4 rounded-2xl font-bold text-sm transition-all border-2 ${selectedDept === dept
+                                                                    ? 'border-blue-600 bg-blue-50 text-blue-600 shadow-md shadow-blue-100'
+                                                                    : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200'
+                                                                    }`}
+                                                            >
+                                                                {dept}
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Your Query</label>
-                                                    <textarea className="w-full p-6 bg-white border border-slate-200 rounded-[28px] text-[15px] outline-none h-48 resize-none shadow-sm focus:border-blue-500 transition-all font-medium" placeholder="Explain your symptoms or request a follow-up..."></textarea>
+                                                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block ml-1">Describe your Medical Concern</label>
+                                                    <textarea
+                                                        value={consultMsg}
+                                                        onChange={(e) => setConsultMsg(e.target.value)}
+                                                        className="w-full p-8 bg-white border border-slate-200 rounded-[32px] text-[16px] outline-none h-60 resize-none shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all font-medium leading-relaxed"
+                                                        placeholder="Please explain your symptoms, duration, and any specific questions for the physician..."
+                                                    ></textarea>
                                                 </div>
-                                                <button onClick={() => setMsgStep('sent')} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all active:scale-[0.98] uppercase tracking-widest mt-4">Send Secure Message</button>
+                                                <div className="flex flex-col gap-4">
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!consultMsg.trim()) {
+                                                                alert("Please describe your concern before sending.");
+                                                                return;
+                                                            }
+                                                            setMsgStep('sent');
+                                                        }}
+                                                        className="w-full bg-blue-600 text-white py-6 rounded-2xl font-black text-base shadow-xl shadow-blue-200 hover:bg-blue-700 hover:shadow-2xl transition-all active:scale-[0.98] uppercase tracking-widest"
+                                                    >
+                                                        Send Secure Message to {selectedDept}
+                                                    </button>
+                                                    <button onClick={() => setActiveFlow(null)} className="text-slate-400 text-xs font-bold uppercase tracking-widest hover:text-slate-600 transition-colors">Cancel Request</button>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
 
                                     {activeFlow === 'consult' && msgStep === 'sent' && (
                                         <div className="text-center py-20 max-w-lg mx-auto">
-                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 text-white shadow-2xl shadow-blue-200"><Check size={48} strokeWidth={3} /></motion.div>
+                                            <Motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-8 text-white shadow-2xl shadow-blue-200"><Check size={48} strokeWidth={3} /></Motion.div>
                                             <h3 className="text-4xl font-black text-slate-900 mb-4">Message Dispatched</h3>
                                             <p className="text-slate-500 mb-10">Your query has been sent securely via mTLS. A physician will review and respond within 4-6 business hours.</p>
                                             <button onClick={() => setActiveFlow(null)} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold text-sm shadow-xl hover:bg-blue-600 transition-all active:scale-95 w-full uppercase tracking-widest">Done</button>
@@ -458,7 +678,7 @@ const ChatPage = () => {
                                     )}
                                 </div>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
                 </AnimatePresence>
             </main>
