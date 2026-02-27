@@ -15,6 +15,13 @@ export const adminAPI = {
   getAppointments: () => api.get('/admin/appointments'),
   getPharmacyOrders: () => api.get('/admin/pharmacy_queue'),
 
+  // FETCH PATIENTS & DOCTORS
+  getPatients: () => api.get('/admin/patients'),
+  getDoctors: () => api.get('/patient/doctors'),
+
+  // ADMIN BOOK APPOINTMENT
+  bookAppointment: (data) => api.post('/admin/book_appointment', data),
+
   // UPDATED FUNCTION: Accepts extraData object
   updateStatus: (type, id, status, extraData = {}) => api.post(`/admin/update_status`, null, {
     params: {

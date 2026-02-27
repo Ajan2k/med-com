@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
+import AppointmentsCalendar from '../components/AppointmentsCalendar';
 
 // --- SUB-COMPONENTS ---
 const SidebarItem = ({ id, Icon, label, count, visible, activeTab, setActiveTab }) => { // eslint-disable-line no-unused-vars
@@ -533,118 +534,11 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* DOCTOR VIEW: WEEKLY CALENDAR SCHEDULE */}
                     {activeTab === 'appointments' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
-
-                            {/* Calendar Header / Tool Bar */}
-                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={18} className="text-blue-500" /> Managing Schedule</h3>
-                                    <p className="text-xs font-semibold text-slate-400 mt-1">Oct 19 - Oct 25, 2026</p>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">Today</button>
-                                    <button className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">Set Availability</button>
-                                </div>
-                            </div>
-
-                            {/* Weekly Grid Container (Scrollable) */}
-                            <div className="flex-1 overflow-y-auto bg-slate-50/30 relative custom-scrollbar">
-
-                                {/* Day Headers */}
-                                <div className="grid grid-cols-[80px_1fr_1fr_1fr_1fr_1fr_1fr_1fr] border-b border-slate-200 sticky top-0 bg-white/90 backdrop-blur-md z-30 shadow-sm">
-                                    <div className="p-4 text-center border-r border-slate-100"></div>
-                                    {['Mon 19', 'Tue 20', 'Wed 21', 'Thu 22', 'Fri 23', 'Sat 24', 'Sun 25'].map((day, i) => (
-                                        <div key={day} className={`p-4 text-center border-r border-slate-100 ${i === 2 ? 'bg-blue-50/50' : ''}`}>
-                                            <p className={`text-xs font-extrabold uppercase tracking-widest ${i === 2 ? 'text-blue-600' : 'text-slate-400'}`}>{day.split(' ')[0]}</p>
-                                            <p className={`text-2xl font-black mt-1 ${i === 2 ? 'text-blue-700' : 'text-slate-800'}`}>{day.split(' ')[1]}</p>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Time Slots Grid */}
-                                <div className="relative border-t border-slate-100 min-h-[800px]">
-                                    {/* The Background Grid Lines */}
-                                    <div className="absolute inset-0 grid grid-cols-[80px_1fr_1fr_1fr_1fr_1fr_1fr_1fr]">
-                                        {/* Time Axis Labels */}
-                                        <div className="border-r border-slate-100 bg-white/50">
-                                            {['08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM'].map(time => (
-                                                <div key={time} className="h-20 text-[10px] font-bold text-slate-400 text-right pr-3 pt-2">{time}</div>
-                                            ))}
-                                        </div>
-                                        {/* Day Columns */}
-                                        {[0, 1, 2, 3, 4, 5, 6].map(i => (
-                                            <div key={i} className={`border-r border-slate-100 relative ${i === 2 ? 'bg-blue-50/20' : ''}`}>
-                                                {/* Horizontal Hour Lines inside day columns */}
-                                                {[...Array(11)].map((_, j) => (
-                                                    <div key={j} className="h-20 border-b border-slate-50 border-dashed"></div>
-                                                ))}
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* APPOINTMENT BLOCKS (Absolutely positioned over the grid) */}
-                                    <div className="absolute top-0 left-[80px] right-0 bottom-0 pointer-events-none">
-
-                                        {appointments.filter(a => a.type !== 'lab_test').map((appt) => {
-
-                                            // Mock Logic: We randomly distribute the parsed real appointments onto the grid for visual flair.
-                                            // In a real app, this calculates Top/Left based on appt.appointment_time
-
-                                            const dayIndex = (appt.id % 5); // Spread across Mon-Fri
-                                            const hourIndex = ((appt.id % 8) + 1); // Spread 9am-4pm
-
-                                            // 80px per hour block. 
-                                            const topPosition = `${hourIndex * 80}px`;
-                                            const leftPosition = `calc(${dayIndex} * (100% / 7))`;
-                                            const widthSize = `calc(100% / 7 - 12px)`;
-
-                                            const isConfirmed = appt.status === 'confirmed';
-                                            const isPending = appt.status === 'pending';
-
-                                            return (
-                                                <div
-                                                    key={appt.id}
-                                                    onClick={() => setSelectedAppt(appt)}
-                                                    className={`absolute m-1.5 p-3 rounded-xl border pointer-events-auto cursor-pointer group hover:scale-[1.02] hover:shadow-xl transition-all duration-300 hover:z-50
-                                                        ${isConfirmed ? 'bg-white/80 backdrop-blur-md border-emerald-100 shadow-[0_4px_15px_rgba(16,185,129,0.1)]' :
-                                                            isPending ? 'bg-amber-50/90 backdrop-blur-md border-amber-100 shadow-[0_4px_15px_rgba(245,158,11,0.15)]' :
-                                                                'bg-slate-50/90 backdrop-blur-md border-slate-200'
-                                                        }
-                                                    `}
-                                                    style={{
-                                                        top: topPosition,
-                                                        left: leftPosition,
-                                                        width: widthSize,
-                                                        height: '70px', // Assume 1 hr block 
-                                                    }}
-                                                >
-                                                    <div className="flex justify-between items-start mb-1 leading-none">
-                                                        <span className="text-[10px] font-black uppercase text-slate-400">#P-{appt.patient_id}</span>
-                                                        <div className={`w-2 h-2 rounded-full ${isConfirmed ? 'bg-emerald-400' : isPending ? 'bg-amber-400 animate-pulse' : 'bg-slate-400'}`}></div>
-                                                    </div>
-                                                    <h4 className={`text-sm font-bold truncate ${isConfirmed ? 'text-emerald-900' : isPending ? 'text-amber-900' : 'text-slate-600'}`}>Consultation</h4>
-                                                    <p className={`text-[10px] truncate font-semibold ${isConfirmed ? 'text-emerald-600' : isPending ? 'text-amber-600' : 'text-slate-400'}`}>Dr. Smith</p>
-
-                                                    {/* Hover Action Strip */}
-                                                    <div className="absolute inset-x-0 bottom-0 top-0 bg-blue-600 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center font-bold text-xs transition-opacity duration-300 shadow-lg shadow-blue-500/40">
-                                                        Manage
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-
-                                        {/* Mock Blocked Time */}
-                                        <div
-                                            className="absolute m-1.5 rounded-xl border border-slate-200 bg-slate-100/50 backdrop-blur-sm shadow-inner flex items-center justify-center"
-                                            style={{ top: '320px', left: `calc(1 * (100% / 7))`, width: `calc(100% / 7 - 12px)`, height: '150px' }}
-                                        >
-                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest rotate-90 whitespace-nowrap">Surgery Block</span>
-                                        </div>
-                                    </div>
-
-                                </div>
-                            </div>
-                        </Motion.div>
+                        <AppointmentsCalendar
+                            appointments={appointments}
+                            setSelectedAppt={setSelectedAppt}
+                            onRefresh={fetchData}
+                        />
                     )}
 
                     {/* LAB VIEW: TEST REQUESTS */}
