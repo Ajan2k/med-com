@@ -45,4 +45,5 @@ export const PharmacyCartProvider = ({ children }) => {
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const usePharmacyCart = () => useContext(PharmacyCartContext);

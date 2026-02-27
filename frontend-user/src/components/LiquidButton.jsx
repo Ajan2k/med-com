@@ -1,8 +1,10 @@
-import { motion } from "framer-motion";
+// eslint-disable-next-line no-unused-vars
+import { motion as Motion } from "framer-motion";
 
+// eslint-disable-next-line no-unused-vars
 const LiquidButton = ({ icon: Icon, label, onClick }) => {
   return (
-    <motion.button
+    <Motion.button
       whileHover={{ y: -2, backgroundColor: "#ffffff" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
@@ -11,11 +13,11 @@ const LiquidButton = ({ icon: Icon, label, onClick }) => {
       <div className="w-10 h-10 rounded-full bg-white text-blue-500 flex items-center justify-center mb-2 shadow-sm group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
         <Icon size={20} strokeWidth={2.5} />
       </div>
-      
+
       <span className="text-[12px] font-bold text-slate-600 group-hover:text-blue-600 transition-colors">
         {label}
       </span>
-    </motion.button>
+    </Motion.button>
   );
 };
 

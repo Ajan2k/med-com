@@ -302,7 +302,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
         // Check localStorage for previous orders for this user
         const storageKey = `medimart_orders_${user.id}`;
         let savedOrders = [];
-        try { savedOrders = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (_) { }
+        try { savedOrders = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { console.debug('No saved orders found'); }
 
         if (savedOrders.length > 0) {
             const lastOrder = savedOrders[savedOrders.length - 1];
@@ -318,6 +318,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
             setTimeout(() => addMsg('bot', 'Browse medicines by category, search by name, or ask me anything about your health!', 'text'), 700);
             setTimeout(() => addMsg('bot', 'Select a department to get started:', 'grid'), 1400);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const onSend = (text) => { handleUserMessage(text); setInput(''); };
@@ -336,7 +337,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
             } else if (option.action === 'Show Last Order') {
                 const storageKey = `medimart_orders_${user.id}`;
                 let savedOrders = [];
-                try { savedOrders = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (_) { }
+                try { savedOrders = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { console.debug('No saved orders found'); }
                 if (savedOrders.length > 0) {
                     const lastOrder = savedOrders[savedOrders.length - 1];
                     addMsg('bot', `Here is your most recent order (#${lastOrder.id}):`, 'smart_reorder', lastOrder);
@@ -429,7 +430,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
                         existing.push(order);
                         if (existing.length > 10) existing.splice(0, existing.length - 10);
                         localStorage.setItem(storageKey, JSON.stringify(existing));
-                    } catch (_) { }
+                    } catch { console.debug('Failed to update orders'); }
                     addMsg('bot', '🎉 Order Placed Successfully!');
                     addMsg('bot', `Your Order ID is #${order.id}. Thank you for shopping with MediMart.`);
                     clearCart();
@@ -640,12 +641,6 @@ const PharmacyChatView = ({ user, onLogout }) => {
             }
 
             const top = results[0];
-            const discountLine = top.discount > 0
-                ? ` (${top.discount}% off — was ₹${top.originalPrice?.toFixed(0)})`
-                : '';
-            const packLine = top.packSize ? ` | 📦 ${top.packSize}` : '';
-            const ratingLine = top.rating ? ` | ⭐ ${top.rating?.toFixed(1)}` : '';
-
             addMsg('bot', '', 'price_card', top);
 
             if (results.length > 1) {
@@ -706,6 +701,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
                 icon: CATEGORY_ICONS[c] || '💊',
             })));
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (

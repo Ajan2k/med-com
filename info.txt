@@ -6,7 +6,7 @@ terminal 2:
 
 cd frontend-user
 npm run dev
-
+ 
 terminal 3:
 cd frontend-admin
 npm run dev

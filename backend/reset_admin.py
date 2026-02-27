@@ -13,7 +13,7 @@ def reset_admin():
         admin.hashed_password = get_password_hash("admin123")
         admin.role = UserRole.ADMIN
         db.commit()
-        print("✅ Admin password successfully reset to 'admin123'")
+        print("[SUCCESS] Admin password successfully reset to 'admin123'")
     else:
         print("Admin user not found. Creating a new admin user...")
         new_admin = User(
@@ -26,7 +26,7 @@ def reset_admin():
         )
         db.add(new_admin)
         db.commit()
-        print("✅ New admin user created with password 'admin123'")
+        print("[SUCCESS] New admin user created with password 'admin123'")
 
     # Check if adhi admin exists
     adhi_admin = db.query(User).filter(User.email == "adhi@hospital.com").first()
@@ -36,7 +36,7 @@ def reset_admin():
         adhi_admin.hashed_password = get_password_hash("admin123")
         adhi_admin.role = UserRole.ADMIN
         db.commit()
-        print("✅ Adhi Admin password successfully reset to 'admin123'")
+        print("[SUCCESS] Adhi Admin password successfully reset to 'admin123'")
     else:
         print("Adhi Admin user not found. Creating a new admin user...")
         new_adhi = User(
@@ -49,7 +49,7 @@ def reset_admin():
         )
         db.add(new_adhi)
         db.commit()
-        print("✅ New Adhi admin user created with password 'admin123'")
+        print("[SUCCESS] New Adhi admin user created with password 'admin123'")
 
     db.close()
 

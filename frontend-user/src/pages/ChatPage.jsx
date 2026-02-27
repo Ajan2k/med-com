@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+// eslint-disable-next-line no-unused-vars
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
     MessageSquare, Calendar, Pill, Activity, Stethoscope,
     FileText, Send, X, LogOut, ShieldCheck, Video,
@@ -32,8 +33,10 @@ const ChatPage = () => {
     useEffect(() => {
         if (!loading) {
             if (!user) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setMessages([{ role: 'bot', content: "Welcome to MediCare. Please sign in to access your health records.", type: 'login' }]);
             } else {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setMessages([{ role: 'bot', content: `Hello ${user.name}. I am your dedicated AI Health Assistant. How can I help you today?`, type: 'menu' }]);
             }
         }
@@ -59,7 +62,7 @@ const ChatPage = () => {
             if (data.recommend_action === 'book_appointment') {
                 setTimeout(() => setMessages(prev => [...prev, { role: 'bot', content: "Would you like to schedule that now?", type: 'action_book' }]), 800);
             }
-        } catch (error) {
+        } catch {
             setMessages(prev => [...prev, { role: 'bot', content: "Connectivity Issue. Please try again." }]);
         }
     };
@@ -83,7 +86,7 @@ const ChatPage = () => {
 
     const handleJoinClick = (rawLink) => {
         if (!rawLink) return;
-        let url = rawLink.toString().trim().replace(/\[.*?\]\((.*?)\)/g, "$1").replace(/[\[\]\(\)]/g, "");
+        let url = rawLink.toString().trim().replace(/\[.*?\]\((.*?)\)/g, "$1").replace(/[[\]()]/g, "");
         if (!url.startsWith('http')) url = `https://${url}`;
         window.open(url, '_blank', 'noopener,noreferrer');
     };
@@ -98,7 +101,7 @@ const ChatPage = () => {
             const finalName = `${selectedTest.name} (${mode})`;
             await patientAPI.bookLab({ patient_id: user.id, test_name: finalName });
             setLabStep('success');
-        } catch (e) { alert("Booking Failed"); }
+        } catch { alert("Booking Failed"); }
     };
 
     const handleHealthQuery = () => {
@@ -205,7 +208,7 @@ const ChatPage = () => {
                 <div className="flex-1 overflow-y-auto px-10 py-8 space-y-8 scroll-smooth scrollbar-hide">
                     <div className="max-w-4xl mx-auto w-full space-y-8 pb-10">
                         {messages.map((msg, i) => (
-                            <motion.div
+                            <Motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 key={i}
@@ -218,14 +221,14 @@ const ChatPage = () => {
                                 <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
                                     {msg.content && (
                                         <div className={`px-6 py-4 text-[15px] leading-relaxed shadow-sm relative ${msg.role === 'user'
-                                                ? 'bg-blue-600 text-white rounded-[24px] rounded-tr-sm'
-                                                : 'bg-white text-slate-800 border border-slate-100 rounded-[24px] rounded-tl-sm'
+                                            ? 'bg-blue-600 text-white rounded-[24px] rounded-tr-sm'
+                                            : 'bg-white text-slate-800 border border-slate-100 rounded-[24px] rounded-tl-sm'
                                             }`}>
                                             <ReactMarkdown components={{
-                                                strong: ({ node, ...props }) => <span className="font-bold" {...props} />,
-                                                p: ({ node, ...props }) => <span className="block mb-1 last:mb-0" {...props} />,
-                                                ul: ({ node, ...props }) => <ul className="list-disc ml-6 space-y-2 mt-2" {...props} />,
-                                                li: ({ node, ...props }) => <li className="pl-1" {...props} />
+                                                strong: ({ ...props }) => <span className="font-bold" {...props} />,
+                                                p: ({ ...props }) => <span className="block mb-1 last:mb-0" {...props} />,
+                                                ul: ({ ...props }) => <ul className="list-disc ml-6 space-y-2 mt-2" {...props} />,
+                                                li: ({ ...props }) => <li className="pl-1" {...props} />
                                             }}>{msg.content}</ReactMarkdown>
                                         </div>
                                     )}
@@ -237,7 +240,7 @@ const ChatPage = () => {
                                         </button>
                                     )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                         ))}
                         <div ref={messagesEndRef} />
                     </div>
