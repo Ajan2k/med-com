@@ -1,21 +1,26 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import jwt
-from passlib.context import CryptContext
+import bcrypt  # Replaced passlib with direct bcrypt import
 from cryptography.fernet import Fernet
 from backend.config import settings
-
-# 1. Password Hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # 2. AES Encryption (For Patient Symptoms/Data)
 cipher_suite = Fernet(settings.ENCRYPTION_KEY)
 
+# 1. Password Hashing (Passed directly to bcrypt to avoid passlib bug with bcrypt >= 4.1.0)
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    if isinstance(plain_password, str):
+        plain_password = plain_password.encode('utf-8')
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(plain_password, hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password, salt).decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
