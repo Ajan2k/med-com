@@ -2,7 +2,7 @@ terminal 1:
 source venv/Scripts/activate
 uvicorn backend.app:app --reload --port 8000
 
-terminal 2:
+terminal 2: 
 
 cd frontend-user
 npm run dev

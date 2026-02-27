@@ -1,5 +1,5 @@
 import sys
-sys.path.append(r'd:\ml\internship assignment\healthcare-platform')
+# sys.path.append(r'd:\ml\internship assignment\healthcare-platform')
 import requests
 
 BASE = "http://localhost:8000"
