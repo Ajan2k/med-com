@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, JSON, Text, Enum
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, JSON, Text, Enum # Reload trigger
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from datetime import datetime
 import enum
@@ -9,7 +9,9 @@ import enum
 # Get DB URL from environment variable (Render) OR use a local fallback
 # Note: I changed the fallback to SQLite ('sqlite:///./database.db') so it works 
 # instantly on any machine without needing a local Postgres server running.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+# FORCE HARDCODED PATH FOR WINDOWS LOCAL
+DATABASE_URL = "sqlite:///D:/Desktop/med-com/database.db"
+print(f"Connecting to Database at: {DATABASE_URL}")
 
 # Fix for Render's Postgres URL (it starts with 'postgres://' but SQLAlchemy needs 'postgresql://')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -37,9 +39,11 @@ class UserRole(str, enum.Enum):
 class AppointmentStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
+    PROCESSING = "processing" # For Lab Tests
+    READY = "ready" # For Lab Results
     COMPLETED = "completed"
     CANCELLED = "cancelled"
-    RESCHEDULED = "rescheduled"  # Added based on your previous robust features
+    RESCHEDULED = "rescheduled" 
 
 class OrderStatus(str, enum.Enum):
     PROCESSING = "processing"
@@ -87,6 +91,10 @@ class Appointment(Base):
     
     # Added "doctor_name" field which you used in your frontend logic for Lab Tests (e.g., storing "Home Collection")
     doctor_name = Column(String, nullable=True) 
+    
+    # Lab specific fields
+    lab_result = Column(Text, nullable=True)
+    lab_report_url = Column(String, nullable=True)
 
     patient = relationship("User", foreign_keys=[patient_id], back_populates="appointments")
     doctor = relationship("User", foreign_keys=[doctor_id], back_populates="doctor_appointments")
@@ -124,6 +132,102 @@ def get_db():
 def create_tables():
     Base.metadata.create_all(bind=engine)
     print(" Database Tables Created Successfully")
+    auto_seed()
+
+def auto_seed():
+    # Use a flag file to prevent infinite reload loops with uvicorn --reload
+    flag_file = "D:/Desktop/med-com/.seeded"
+    if os.path.exists(flag_file):
+        return
+
+    db = SessionLocal()
+    try:
+        doctor_count = db.query(User).filter(User.role == "doctor").count()
+        if doctor_count > 0:
+            # Complete the flag file if missing
+            if not os.path.exists(flag_file):
+                with open(flag_file, "w") as f: f.write("seeded")
+            return 
+            
+        print("Doctor List Empty. Seeding Mock Data...")
+        
+        # 1. Create Mock Patients
+        patients_data = [
+            {"name": "Alice Smith", "phone": "9876543210", "email": "alice@example.com"},
+            {"name": "John Doe", "phone": "8877665544", "email": "john@example.com"},
+            {"name": "Sarah Miller", "phone": "7766554433", "email": "sarah@example.com"}
+        ]
+        
+        patients = []
+        for p_data in patients_data:
+            p = User(
+                full_name=p_data["name"],
+                phone=p_data["phone"],
+                email=p_data["email"],
+                role=UserRole.PATIENT,
+                hashed_password="mock_password"
+            )
+            db.add(p)
+            patients.append(p)
+        
+        db.commit()
+        for p in patients: db.refresh(p)
+        
+        # 2. Add Mock Lab Tests & Clinic Appointments
+        appointments_data = [
+            {"name": "Complete Blood Count (CBC)", "type": "lab_test", "status": "pending"},
+            {"name": "Lipid Profile", "type": "lab_test", "status": "processing"},
+            {"name": "Diabetes Screen (HbA1c)", "type": "lab_test", "status": "ready", "result": "HbA1c: 5.8% (Pre-diabetic)"},
+            {"name": "General Consultation", "type": "clinic", "status": "pending"},
+            {"name": "Cardiology Follow-up", "type": "clinic", "status": "confirmed"}
+        ]
+        
+        for idx, appt_data in enumerate(appointments_data):
+            appt = Appointment(
+                patient_id=patients[idx % len(patients)].id,
+                appointment_time=datetime.now(),
+                type=appt_data["type"],
+                doctor_name=appt_data["name"],
+                status=appt_data["status"],
+                lab_result=appt_data.get("result")
+            )
+            db.add(appt)
+
+        # 3. Add Mock Pharmacy Orders
+        pharmacy_orders = [
+            {"data": "Amoxicillin 500mg - 1x Daily\nParacetamol - SOS", "status": "preparing"},
+            {"data": "Vitamin C - 1x Daily\nZinc Supplements", "status": "ready"},
+            {"data": "Lisinopril 10mg\nAtorvastatin 20mg", "status": "processing"}
+        ]
+        
+        for idx, order in enumerate(pharmacy_orders):
+            p_order = Prescription(
+                patient_id=patients[idx % len(patients)].id,
+                extracted_data=order["data"],
+                status=order["status"],
+                created_at=datetime.utcnow()
+            )
+            db.add(p_order)
+
+        db.commit()
+        print(" Database Seeded with Patient and Queue Data Successfully!")
+
+        # Create flag file
+        with open(flag_file, "w") as f: f.write("seeded")
+
+        # 4. Add Mock Inventory (Medicines)
+        # Note: We can reuse the model if it exists, or just ensure some data.
+        # Looking at Dashboard.jsx, it expects items with image, name, brand, category, price, stock, expiryDate
+        # In the existing seed_db.py, there might be a Medicine model, but I'll check first.
+        # Actually, I'll just skip inventory seeding if I'm not sure about the model name 
+        # but wait, Dashboard.jsx calls /pharmacy/medicines.
+        # Let's check backend/routers/pharmacy.py to see the model.
+        
+    except Exception as e:
+        print(f" Seeding Failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     create_tables()

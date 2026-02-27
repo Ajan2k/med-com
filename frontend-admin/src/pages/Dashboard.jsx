@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { adminAPI } from '../services/adminApi';
 import io from 'socket.io-client';
-import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard } from 'lucide-react';
+import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import AppointmentsCalendar from '../components/AppointmentsCalendar';
 
 // --- SUB-COMPONENTS ---
-const SidebarItem = ({ id, Icon, label, count, visible, activeTab, setActiveTab }) => { // eslint-disable-line no-unused-vars
+const SidebarItem = ({ id, Icon, label, count, visible, activeTab, setActiveTab }) => {
     if (!visible) return null;
     return (
         <button
@@ -15,10 +16,14 @@ const SidebarItem = ({ id, Icon, label, count, visible, activeTab, setActiveTab 
             className={`w-full flex items-center justify-between p-3.5 rounded-2xl mb-2 transition-all duration-300 font-medium ${activeTab === id ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/30 font-bold tracking-wide' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white hover:translate-x-1'}`}
         >
             <div className="flex items-center gap-3">
-                <Icon size={20} className={activeTab === id ? "text-white" : "text-slate-50"} />
+                {Icon && <Icon size={20} className={activeTab === id ? "text-white" : "text-slate-400"} />}
                 <span className="text-sm">{label}</span>
             </div>
-            {count > 0 && <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${activeTab === id ? 'bg-white text-blue-600 shadow-sm' : 'bg-red-500 text-white'}`}>{count}</span>}
+            {(Number(count) > 0) && (
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${activeTab === id ? 'bg-white text-blue-600 shadow-sm' : 'bg-red-500 text-white'}`}>
+                    {count}
+                </span>
+            )}
         </button>
     );
 };
@@ -62,12 +67,15 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const socket = io(API_URL);
 
 const Dashboard = ({ onLogout }) => {
-    const role = localStorage.getItem('admin_role') || 'admin';
+    const rawRole = localStorage.getItem('admin_role') || 'Admin';
+    const adminRole = rawRole.toLowerCase();
     const [activeTab, setActiveTab] = useState('overview');
     const [appointments, setAppointments] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [inventory, setInventory] = useState([]); // New state for medicines
+    const [inventory, setInventory] = useState([]);
+    const [allDoctors, setAllDoctors] = useState([]); // Master list of doctors
     const [stats, setStats] = useState({ doctors: 0, lab: 0, pharmacy: 0, inventory: 0 });
+    const [backendDiag, setBackendDiag] = useState(null); // Backend health check state
 
     // ACTION MODAL STATE
     const [selectedAppt, setSelectedAppt] = useState(null);
@@ -75,32 +83,57 @@ const Dashboard = ({ onLogout }) => {
     const [rescheduleDate, setRescheduleDate] = useState('');
     const [rescheduleTime, setRescheduleTime] = useState('');
 
+    // LAB BOOKING STATE
+    const [showLabBookingModal, setShowLabBookingModal] = useState(false);
+    const [labBookingData, setLabBookingData] = useState({
+        patient_name: '',
+        patient_phone: '',
+        test_name: ''
+    });
+
     const adminName = localStorage.getItem('admin_name') || 'Staff';
 
     const fetchData = async () => {
         try {
             const apptRes = await adminAPI.getAppointments();
             const rxRes = await adminAPI.getPharmacyOrders();
-            const invRes = await adminAPI.getMedicines(); // Fetch medicines
+            const invRes = await adminAPI.getMedicines();
+            const docRes = await adminAPI.getDoctors();
 
             // Safety check: ensure data is an array
-            const apptData = Array.isArray(apptRes.data) ? apptRes.data : [];
-            const rxData = Array.isArray(rxRes.data) ? rxRes.data : [];
-            const invData = Array.isArray(invRes.data) ? invRes.data : [];
+            const apptData = Array.isArray(apptRes?.data) ? apptRes.data : [];
+            const rxData = Array.isArray(rxRes?.data) ? rxRes.data : [];
+            const invData = Array.isArray(invRes?.data) ? invRes.data : [];
+            const docData = Array.isArray(docRes?.data) ? docRes.data : [];
 
             setAppointments(apptData);
             setOrders(rxData);
-            setInventory(invData); // Store medicines
+            setInventory(invData);
+            setAllDoctors(docData);
 
             setStats({
-                doctors: apptData.filter(a => a.type !== 'lab_test' && a.status === 'pending').length,
-                lab: apptData.filter(a => a.type === 'lab_test' && a.status !== 'completed').length,
-                pharmacy: rxData.filter(o => o.status === 'preparing').length,
-                inventory: invData.length // Total medicines in stock
+                doctors: (apptData || []).filter(a => a?.type !== 'lab_test' && a?.status?.toLowerCase() === 'pending').length,
+                lab: (apptData || []).filter(a => a?.type === 'lab_test' && a?.status?.toLowerCase() !== 'completed').length,
+                pharmacy: (rxData || []).filter(o => o?.status?.toLowerCase() === 'preparing' || o?.status?.toLowerCase() === 'pending').length,
+                inventory: (invData || []).length
             });
+
+            // Hit Health Check for Diagnostic
+            try {
+                const health = await axios.get(API_URL + '/');
+                setBackendDiag(health.data);
+            } catch (err) {
+                console.error("Health Check Failed", err);
+            }
         } catch (error) {
-            console.error("Data Load Error", error);
+            console.error("CRITICAL: Dashboard Data Load Error", error);
         }
+    };
+
+    const forceSync = () => {
+        console.log("FORCE SYNC INITIATED");
+        fetchData();
+        alert("Data Sync Requested. Refreshing dashboards from the central database...");
     };
 
     // --- INITIAL SETUP ---
@@ -127,6 +160,10 @@ const Dashboard = ({ onLogout }) => {
                     return;
                 }
                 await adminAPI.updateStatus(type, id, status, { date: rescheduleDate, time: rescheduleTime });
+            } else if (status === 'completed' || status === 'ready') {
+                const res = prompt("Enter Lab Result Findings (e.g. Blood Sugar: 120mg/dL):", "");
+                if (res === null) return; // Cancelled prompt
+                await adminAPI.updateStatus(type, id, status, { result: res });
             } else {
                 await adminAPI.updateStatus(type, id, status);
             }
@@ -138,6 +175,18 @@ const Dashboard = ({ onLogout }) => {
         } catch (error) {
             console.error(error);
             alert("Action Failed. Check console.");
+        }
+    };
+
+    const handleLabBookSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await adminAPI.bookLab(labBookingData);
+            setShowLabBookingModal(false);
+            setLabBookingData({ patient_name: '', patient_phone: '', test_name: '' });
+            fetchData();
+        } catch (error) {
+            alert("Failed to book lab test.");
         }
     };
 
@@ -174,7 +223,60 @@ const Dashboard = ({ onLogout }) => {
                     </div>
                 </div>
 
-                <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white px-3 py-2 transition-colors">
+                <div className="mt-8 pt-6 border-t border-slate-800/50">
+                    <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/30">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">System Health</p>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/30">
+                                <p className="text-[8px] text-slate-500 font-bold uppercase">Appts</p>
+                                <p className="text-xs font-black text-blue-400">{Array.isArray(appointments) ? appointments.length : 0}</p>
+                            </div>
+                            <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/30">
+                                <p className="text-[8px] text-slate-500 font-bold uppercase">Orders</p>
+                                <p className="text-xs font-black text-emerald-400">{Array.isArray(orders) ? orders.length : 0}</p>
+                            </div>
+                            <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/30">
+                                <p className="text-[8px] text-slate-500 font-bold uppercase">Stock</p>
+                                <p className="text-xs font-black text-purple-400">{Array.isArray(inventory) ? inventory.length : 0}</p>
+                            </div>
+                            <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/30">
+                                <p className="text-[8px] text-slate-500 font-bold uppercase">Docs</p>
+                                <p className="text-xs font-black text-amber-400">{Array.isArray(allDoctors) ? allDoctors.length : 0}</p>
+                            </div>
+                            <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/30">
+                                <p className="text-[8px] text-slate-500 font-bold uppercase">DB</p>
+                                <p className="text-[8px] font-black text-emerald-400 truncate">VERIFIED</p>
+                            </div>
+                        </div>
+
+                        {/* BACKEND DIAGNOSTIC HUB */}
+                        {backendDiag && (
+                            <div className="mt-4 p-3 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                                <p className="text-[9px] font-black text-blue-400 uppercase mb-2">Live Backend Stats</p>
+                                <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px]">
+                                        <span className="text-slate-500">Appointments:</span>
+                                        <span className="text-white font-bold">{backendDiag.counts?.appointments || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[10px]">
+                                        <span className="text-slate-500">Users:</span>
+                                        <span className="text-white font-bold">{backendDiag.counts?.users || 0}</span>
+                                    </div>
+                                    <p className="text-[8px] text-slate-500 mt-2 truncate italic">{backendDiag.database?.split('/').pop()}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <button 
+                            onClick={forceSync}
+                            className="w-full mt-4 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-bold py-2 rounded-xl border border-blue-500/30 transition-all flex items-center justify-center gap-2"
+                        >
+                            <RefreshCw size={12} /> Force Data Sync
+                        </button>
+                    </div>
+                </div>
+
+                <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white px-3 py-2 transition-colors mt-6">
                     <LogOut size={18} />
                     <span className="text-sm font-medium">Sign Out</span>
                 </button>
@@ -197,7 +299,7 @@ const Dashboard = ({ onLogout }) => {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <p className="text-sm font-bold text-slate-800">{adminName}</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-100 px-3 py-1 rounded-full mt-1 border border-slate-200/60 inline-block">{role === 'lab' ? 'Technician' : role}</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-100 px-3 py-1 rounded-full mt-1 border border-slate-200/60 inline-block">{adminRole === 'lab' ? 'Technician' : rawRole}</p>
                         </div>
                         <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 border-2 border-white shadow-sm flex items-center justify-center font-bold text-slate-500">
                             {adminName.charAt(0).toUpperCase()}
@@ -536,6 +638,7 @@ const Dashboard = ({ onLogout }) => {
                     {activeTab === 'appointments' && (
                         <AppointmentsCalendar
                             appointments={appointments}
+                            doctors={allDoctors}
                             setSelectedAppt={setSelectedAppt}
                             onRefresh={fetchData}
                         />
@@ -543,28 +646,46 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* LAB VIEW: TEST REQUESTS */}
                     {activeTab === 'lab' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-6">
-                            {appointments.filter(a => a.type === 'lab_test').map(test => {
-                                const isHome = test.doctor_name && test.doctor_name.includes("Home Collection");
-                                return (
-                                    <div key={test.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex justify-between items-center group hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
-                                        <div className="flex gap-4 items-center">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isHome ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'}`}>
-                                                {isHome ? <Truck size={24} /> : <TestTube size={24} />}
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg">Lab Queue</h3>
+                                    <p className="text-sm text-slate-500">Manage and track pending laboratory tests.</p>
+                                </div>
+                                <button onClick={() => setShowLabBookingModal(true)} className="bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2">
+                                    <Plus size={16} /> New Lab Request
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-1 gap-6">
+                                {appointments.filter(a => a?.type === 'lab_test').map(test => {
+                                    const isHome = test?.doctor_name?.includes("Home Collection");
+                                    return (
+                                        <div key={test.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex justify-between items-center group hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
+                                            <div className="flex gap-4 items-center">
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isHome ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'}`}>
+                                                    {isHome ? <Truck size={24} /> : <TestTube size={24} />}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800">Test #{test.id}</h3>
+                                                    <p className="text-sm text-slate-600 font-medium">{test.doctor_name || "Lab Test"}</p>
+                                                    <p className="text-xs text-slate-400 mt-1">{test.patient_name || `Patient #${test.patient_id}`} - {test.patient_phone || 'No Phone'} • Status: <span className="uppercase font-bold text-slate-600">{test.status}</span></p>
+                                                    {test.lab_result && (
+                                                        <div className="mt-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100/50">
+                                                            <p className="text-[10px] text-slate-600 italic">Result: {test.lab_result}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-slate-800">Test #{test.id}</h3>
-                                                <p className="text-sm text-slate-600 font-medium">{test.doctor_name || "Lab Test"}</p>
-                                                <p className="text-xs text-slate-400 mt-1">Patient #{test.patient_id} • Status: <span className="uppercase font-bold text-slate-600">{test.status}</span></p>
+                                                <button onClick={() => setSelectedAppt(test)} className="px-6 py-3 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-gradient-to-r hover:from-purple-600 hover:to-indigo-600 shadow-lg shadow-slate-200 transition-all duration-300 hover:shadow-purple-500/30">Manage Request</button>
                                             </div>
                                         </div>
-                                        <div>
-                                            <button onClick={() => setSelectedAppt(test)} className="px-6 py-3 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-gradient-to-r hover:from-purple-600 hover:to-indigo-600 shadow-lg shadow-slate-200 transition-all duration-300 hover:shadow-purple-500/30">Manage Request</button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {appointments.filter(a => a.type === 'lab_test').length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No pending lab tests.</div>}
+                                    );
+                                })}
+                                {appointments.filter(a => a.type === 'lab_test').length === 0 && (
+                                    <div className="p-16 text-center text-slate-400 font-medium">No pending lab tests.</div>
+                                )}
+                            </div>
                         </Motion.div>
                     )}
 
@@ -574,7 +695,10 @@ const Dashboard = ({ onLogout }) => {
                             {orders.map(order => (
                                 <div key={order.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
                                     <div className="flex justify-between mb-4">
-                                        <h3 className="font-bold text-slate-800 text-lg">Rx Order #{order.id}</h3>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 text-lg">Rx Order #{order.id}</h3>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{order.patient_name} • {order.patient_phone}</p>
+                                        </div>
                                         <span className="text-xs font-bold uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">{order.status}</span>
                                     </div>
                                     <div className="h-28 bg-slate-50 rounded-2xl p-4 mb-6 text-xs font-mono text-slate-600 overflow-y-auto border border-slate-100/60 shadow-inner">
@@ -586,7 +710,9 @@ const Dashboard = ({ onLogout }) => {
                                     </div>
                                 </div>
                             ))}
-                            {orders.length === 0 && <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>}
+                            {orders.length === 0 && (
+                                <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>
+                            )}
                         </Motion.div>
                     )}
 
@@ -625,9 +751,9 @@ const Dashboard = ({ onLogout }) => {
                                                     <span className="text-xs text-slate-400 font-medium">{item.subCategory}</span>
                                                 </td>
                                                 <td className="p-5">
-                                                    <p className="font-black text-slate-800 text-sm">₹{item.price.toFixed(2)}</p>
-                                                    {item.originalPrice > item.price && (
-                                                        <p className="text-[11px] text-slate-400 font-bold line-through mt-0.5">₹{item.originalPrice.toFixed(2)}</p>
+                                                    <p className="font-black text-slate-800 text-sm">₹{Number(item?.price || 0).toFixed(2)}</p>
+                                                    {Number(item?.originalPrice || 0) > Number(item?.price || 0) && (
+                                                        <p className="text-[11px] text-slate-400 font-bold line-through mt-0.5">₹{Number(item?.originalPrice || 0).toFixed(2)}</p>
                                                     )}
                                                 </td>
                                                 <td className="p-5">
@@ -639,7 +765,9 @@ const Dashboard = ({ onLogout }) => {
                                                     </span>
                                                 </td>
                                                 <td className="p-5">
-                                                    <p className="text-sm font-bold text-slate-600">{new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</p>
+                                                    <p className="text-sm font-bold text-slate-600">
+                                                        {item?.expiryDate ? new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'N/A'}
+                                                    </p>
                                                 </td>
                                             </tr>
                                         ))}
@@ -664,7 +792,7 @@ const Dashboard = ({ onLogout }) => {
                             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                 <div>
                                     <h3 className="font-bold text-lg text-slate-800">{selectedAppt.type === 'lab_test' ? 'Manage Lab Request' : 'Manage Appointment'}</h3>
-                                    <p className="text-xs text-slate-500">ID #{selectedAppt.id} • Patient #{selectedAppt.patient_id}</p>
+                                    <p className="text-xs text-slate-500">ID #{selectedAppt.id} • {selectedAppt.patient_name} - {selectedAppt.patient_phone || 'No Phone'}</p>
                                 </div>
                                 <button onClick={() => setSelectedAppt(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} className="text-slate-500" /></button>
                             </div>
@@ -768,6 +896,37 @@ const Dashboard = ({ onLogout }) => {
                                     Close Details
                                 </button>
                             </div>
+                        </Motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* LAB BOOKING MODAL */}
+            <AnimatePresence>
+                {showLabBookingModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                        <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <h3 className="font-bold text-lg text-slate-800">New Lab Request</h3>
+                                <button onClick={() => setShowLabBookingModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} className="text-slate-500" /></button>
+                            </div>
+                            <form onSubmit={handleLabBookSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Patient Full Name</label>
+                                    <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-purple-500" placeholder="e.g. John Doe" value={labBookingData.patient_name} onChange={e => setLabBookingData({ ...labBookingData, patient_name: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Phone Number</label>
+                                    <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-purple-500" placeholder="e.g. 9876543210" value={labBookingData.patient_phone} onChange={e => setLabBookingData({ ...labBookingData, patient_phone: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Test Name</label>
+                                    <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-purple-500" placeholder="e.g. CBC, Lipid Profile" value={labBookingData.test_name} onChange={e => setLabBookingData({ ...labBookingData, test_name: e.target.value })} />
+                                </div>
+                                <button type="submit" className="w-full bg-purple-600 text-white py-4 rounded-xl font-bold hover:bg-purple-700 shadow-xl shadow-purple-500/20 transition-all mt-4">
+                                    Book Lab Test
+                                </button>
+                            </form>
                         </Motion.div>
                     </div>
                 )}

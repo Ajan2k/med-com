@@ -3,14 +3,19 @@ import { Calendar, ChevronLeft, ChevronRight, Plus, X, User as UserIcon, Clock, 
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { adminAPI } from '../services/adminApi';
 
-const AppointmentsCalendar = ({ appointments, setSelectedAppt, onRefresh }) => {
-    // 1. State for current week offset (0 = this week, -1 = last week, 1 = next week)
+const AppointmentsCalendar = ({ appointments, doctors, setSelectedAppt, onRefresh }) => {
+    // ... (rest of props)
     const [weekOffset, setWeekOffset] = useState(0);
 
     // --- ADMIN BOOKING MODAL STATE ---
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [patientsList, setPatientsList] = useState([]);
     const [doctorsList, setDoctorsList] = useState([]);
+
+    // Sync with props
+    useEffect(() => {
+        if (doctors) setDoctorsList(doctors);
+    }, [doctors]);
 
     const [bookForm, setBookForm] = useState({
         patient_name: '',
@@ -22,11 +27,17 @@ const AppointmentsCalendar = ({ appointments, setSelectedAppt, onRefresh }) => {
     });
     const [isBooking, setIsBooking] = useState(false);
 
-    // Fetch lists when modal opens
+    // Fetch lists when modal opens (Double safety)
     useEffect(() => {
         if (showBookingModal) {
-            adminAPI.getPatients().then(res => setPatientsList(res.data)).catch(console.error);
-            adminAPI.getDoctors().then(res => setDoctorsList(res.data)).catch(console.error);
+            adminAPI.getPatients().then(res => {
+                setPatientsList(res.data || []);
+            }).catch(console.error);
+            
+            // Re-fetch doctors just in case, but we already have them from props too
+            adminAPI.getDoctors().then(res => {
+                if (res.data) setDoctorsList(res.data);
+            }).catch(console.error);
 
             // Set default date to today
             const todayStr = new Date().toISOString().split('T')[0];
@@ -291,8 +302,8 @@ const AppointmentsCalendar = ({ appointments, setSelectedAppt, onRefresh }) => {
                                             required
                                         >
                                             <option value="">-- Choose Doctor --</option>
-                                            {doctorsList.map(d => (
-                                                <option key={d.id} value={d.id}>Dr. {d.full_name} • {d.department}</option>
+                                            {doctorsList?.map(d => (
+                                                <option key={d?.id} value={d?.id}>Dr. {d?.full_name} • {d?.department}</option>
                                             ))}
                                         </select>
                                     </div>

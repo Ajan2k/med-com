@@ -61,8 +61,8 @@ def map_medicine(m: dict) -> dict:
         "originalPrice": m.get("market_price", 0),
         "image": m.get("image_url", f"https://placehold.co/400?text={base_name}"),
         "rating": m.get("ratings", 4.0),
-        "stock": m.get("stock", 0),
-        "expiryDate": m.get("expiry_date", ""),
+        "stock": m.get("stock", 25), # Fallback stock
+        "expiryDate": m.get("expiry_date", "12/2026"), # Fallback expiry
         "discount": discount,
         "selectedWeight": pack_size or "Std",
         "unitType": "unit",

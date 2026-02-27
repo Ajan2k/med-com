@@ -19,8 +19,9 @@ export const adminAPI = {
   getPatients: () => api.get('/admin/patients'),
   getDoctors: () => api.get('/patient/doctors'),
 
-  // ADMIN BOOK APPOINTMENT
+  // ADMIN BOOK APPOINTMENT & LAB
   bookAppointment: (data) => api.post('/admin/book_appointment', data),
+  bookLab: (data) => api.post('/admin/book_lab', data),
 
   // UPDATED FUNCTION: Accepts extraData object
   updateStatus: (type, id, status, extraData = {}) => api.post(`/admin/update_status`, null, {
@@ -29,7 +30,8 @@ export const adminAPI = {
       item_id: id,
       new_status: status,
       new_date: extraData.date, // Send Date
-      new_time: extraData.time  // Send Time
+      new_time: extraData.time,  // Send Time
+      new_result: extraData.result // Send Lab Result
     }
   }),
 

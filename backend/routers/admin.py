@@ -14,6 +14,11 @@ class AdminAppointmentRequest(BaseModel):
     time_slot: str 
     type: str
 
+class AdminLabRequest(BaseModel):
+    patient_name: str
+    patient_phone: str
+    test_name: str
+
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/appointments")
@@ -34,13 +39,28 @@ def get_all_appointments(db: Session = Depends(get_db)):
             "zoom_link": appt.zoom_link,
             "doctor_name": appt.doctor_name,
             "patient_name": patient.full_name if patient else "Unknown",
-            "patient_phone": patient.phone if patient else None
+            "patient_phone": patient.phone if patient else None,
+            "lab_result": appt.lab_result,
+            "lab_report_url": appt.lab_report_url
         })
     return results
 
 @router.get("/pharmacy_queue")
 def get_pharmacy_queue(db: Session = Depends(get_db)):
-    return db.query(Prescription).all()
+    from backend.database import User
+    prescriptions = db.query(Prescription).all()
+    results = []
+    for rx in prescriptions:
+        patient = db.query(User).filter(User.id == rx.patient_id).first()
+        results.append({
+            "id": rx.id,
+            "patient_id": rx.patient_id,
+            "extracted_data": rx.extracted_data,
+            "status": rx.status,
+            "patient_name": patient.full_name if patient else "Unknown",
+            "patient_phone": patient.phone if patient else None
+        })
+    return results
 
 @router.post("/update_status")
 async def update_status(
@@ -49,8 +69,9 @@ async def update_status(
     new_status: str, 
     new_date: Optional[str] = None, 
     new_time: Optional[str] = None,
+    new_result: Optional[str] = None,
     db: Session = Depends(get_db)
-):
+) :
     print(f" ADMIN UPDATE: {item_type} #{item_id} -> {new_status}")
 
     if item_type == "appointment":
@@ -69,6 +90,10 @@ async def update_status(
                 print(f"    Rescheduled to {new_dt}")
             except Exception as e:
                 print(f"    Date Parse Error: {e}")
+
+        if new_result:
+            appt.lab_result = new_result
+            print(f"    Added Result: {new_result}")
 
         db.commit()
         
@@ -138,4 +163,46 @@ async def admin_book_appointment(req: AdminAppointmentRequest, db: Session = Dep
         return {"message": "Booking Successful"}
     except Exception as e:
         print(f"Error booking admin appt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/book_lab")
+async def admin_book_lab(req: AdminLabRequest, db: Session = Depends(get_db)):
+    from backend.database import User, AppointmentStatus
+    try:
+        # Check if patient exists by phone
+        patient = db.query(User).filter(User.phone == req.patient_phone, User.role == "patient").first()
+        if not patient:
+            # Create a new patient profile
+            patient = User(
+                full_name=req.patient_name,
+                phone=req.patient_phone,
+                role="patient",
+                email=f"{req.patient_phone}@temp.com", # Mock email
+                hashed_password="mock" 
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+        else:
+            # Update name if it changed
+            if patient.full_name != req.patient_name:
+                patient.full_name = req.patient_name
+                db.commit()
+
+        # Create Lab Appointment
+        new_appt = Appointment(
+            patient_id=patient.id,
+            doctor_id=None,
+            appointment_time=datetime.now(),
+            type="lab_test",
+            doctor_name=req.test_name, # Storing the requested test in doctor_name for now
+            status=AppointmentStatus.PENDING
+        )
+        db.add(new_appt)
+        db.commit()
+        db.refresh(new_appt)
+
+        return {"message": "Lab Request Booked", "id": new_appt.id}
+    except Exception as e:
+        print(f"Error booking admin lab test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
