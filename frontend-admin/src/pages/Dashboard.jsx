@@ -62,12 +62,7 @@ const socket = io(API_URL);
 
 const Dashboard = ({ onLogout }) => {
     const role = localStorage.getItem('admin_role') || 'admin';
-    const [activeTab, setActiveTab] = useState(() => {
-        if (role === 'doctor') return 'appointments';
-        if (role === 'lab') return 'lab';
-        if (role === 'pharmacist') return 'pharmacy';
-        return 'overview';
-    });
+    const [activeTab, setActiveTab] = useState('overview');
     const [appointments, setAppointments] = useState([]);
     const [orders, setOrders] = useState([]);
     const [inventory, setInventory] = useState([]); // New state for medicines
@@ -168,13 +163,13 @@ const Dashboard = ({ onLogout }) => {
                     <div className="space-y-1">
                         <p className="px-3 text-xs font-bold text-slate-500 uppercase mb-2 mt-4">Workspace</p>
 
-                        {/* STRICT ROLE FILTERING */}
-                        <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={role === 'doctor' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={role === 'lab' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={role === 'pharmacist' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={role === 'pharmacist' || role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={role === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        {/* FULL ACCESS FOR ALL ADMIN LOGINS */}
+                        <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
                     </div>
                 </div>
 
