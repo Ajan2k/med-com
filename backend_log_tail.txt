@@ -1,0 +1,23 @@
+uvicorn : INFO:     Started server process [8636]
+At line:1 char:1
++ uvicorn backend.app:app --host 127.0.0.1 --port 8000 > backend_log.tx ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO:     Started server process [8636]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+ WARNING: Groq API Key missing. AI features will not work.
+Server Starting... Creating Database Tables...
+ Database Tables Created Successfully
+Database Tables Created Successfully!
+INFO:     127.0.0.1:58557 - "GET /socket.io/?EIO=4&transport=polling&t=5dw0zw3y HTTP/1.1" 200 OK
+ Socket Connected: cGJNu_3HFfsDYkeaAAAB
+INFO:     127.0.0.1:58557 - "POST /socket.io/?EIO=4&transport=polling&t=5dw9w20u&sid=ed4EjtYoNZXvbKFOAAAA HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58557 - "GET /socket.io/?EIO=4&transport=polling&t=5dw9z6y9&sid=ed4EjtYoNZXvbKFOAAAA HTTP/1.1" 200 OK
+INFO:     ('127.0.0.1', 58503) - "WebSocket /socket.io/?EIO=4&transport=websocket&sid=ed4EjtYoNZXvbKFOAAAA" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:58557 - "GET /socket.io/?EIO=4&transport=polling&t=5dwag4ph&sid=ed4EjtYoNZXvbKFOAAAA HTTP/1.1" 200 OK
+INFO:     connection closed
+
