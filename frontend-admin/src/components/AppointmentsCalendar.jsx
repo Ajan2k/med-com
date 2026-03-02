@@ -33,7 +33,7 @@ const AppointmentsCalendar = ({ appointments, doctors, setSelectedAppt, onRefres
             adminAPI.getPatients().then(res => {
                 setPatientsList(res.data || []);
             }).catch(console.error);
-            
+
             // Re-fetch doctors just in case, but we already have them from props too
             adminAPI.getDoctors().then(res => {
                 if (res.data) setDoctorsList(res.data);
@@ -185,9 +185,6 @@ const AppointmentsCalendar = ({ appointments, doctors, setSelectedAppt, onRefres
                             <ChevronRight size={18} />
                         </button>
                     </div>
-                    <button onClick={() => setShowBookingModal(true)} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2">
-                        <Plus size={16} /> Book Appointment
-                    </button>
                 </div>
             </div>
 

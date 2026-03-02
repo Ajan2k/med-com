@@ -21,6 +21,12 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const { data } = await authAPI.login(email, password);
+
+      // CRITICAL: Block staff accounts from Patient Portal
+      if (['doctor', 'admin', 'pharmacist', 'lab'].includes(data.role)) {
+        return { success: false, message: "Staff accounts must use the Admin Dashboard to log in." };
+      }
+
       localStorage.setItem('token', data.access_token);
 
       // CRITICAL: Construct the user object carefully
@@ -37,7 +43,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return { success: true };
     } catch (error) {
-      console.error("Login Error:", error);
+      console.error("Login Error in AuthContext:", error.response?.data || error.message);
       return { success: false, message: error.response?.data?.detail || "Login Failed" };
     }
   };

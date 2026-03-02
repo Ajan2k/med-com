@@ -1035,68 +1035,19 @@ const PharmacyChatView = ({ user, onLogout }) => {
     );
 };
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
-const MOCK_USERS = [
-    { email: 'patient@demo.com', password: 'patient123', name: 'Rahul Sharma', id: 'PAT-001' },
-    { email: 'priya@demo.com', password: 'demo1234', name: 'Priya Singh', id: 'PAT-002' },
-];
-
-const PharmacyLogin = ({ onLogin }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setTimeout(() => {
-            const user = MOCK_USERS.find(u => u.email === email && u.password === password);
-            if (user) { onLogin(user); }
-            else { setError('Invalid credentials. Try patient@demo.com / patient123'); }
-            setLoading(false);
-        }, 700);
-    };
-
-    return (
-        <div className="flex-1 flex flex-col items-center justify-center bg-emerald-50">
-            <div className="w-full max-w-md bg-white p-10 rounded-2xl shadow-xl border border-emerald-100">
-                <div className="mb-8 text-center">
-                    <div className="w-16 h-16 bg-emerald-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Pill size={32} className="text-white" />
-                    </div>
-                    <h1 className="text-2xl font-black text-emerald-900">MediMart</h1>
-                    <p className="text-emerald-400 mt-1 font-medium text-sm">Your Online Pharmacy</p>
-                </div>
-                {error && <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-sm font-semibold">{error}</div>}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="email" className="w-full bg-emerald-50 border border-emerald-200 p-4 rounded-lg outline-none focus:border-emerald-600 font-semibold text-emerald-900 placeholder:text-emerald-300" placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <input type="password" className="w-full bg-emerald-50 border border-emerald-200 p-4 rounded-lg outline-none focus:border-emerald-600 font-semibold text-emerald-900 placeholder:text-emerald-300" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-                    <button type="submit" disabled={loading} className="w-full py-4 bg-emerald-800 text-white rounded-lg font-bold text-lg shadow-lg hover:bg-emerald-950 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                        {loading ? 'Logging in...' : 'Login'} <ArrowRight size={20} />
-                    </button>
-                </form>
-                <p className="text-center text-xs text-emerald-300 mt-6 font-semibold">Demo: patient@demo.com / patient123</p>
-            </div>
-        </div>
-    );
-};
+import { useAuth } from '../context/AuthContext';
 
 // ─── APP WRAPPER ──────────────────────────────────────────────────────────────
 const PharmacyApp = () => {
-    const [user, setUser] = useState(null);
+    const { user, logout } = useAuth(); // Use global auth state!
 
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-emerald-50 p-4">
             <FontStyles />
             <div className="w-full max-w-6xl h-[95vh] bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col relative border border-emerald-200 ring-1 ring-emerald-800/5">
-                {!user ? (
-                    <PharmacyLogin onLogin={setUser} />
-                ) : (
-                    <PharmacyCartProvider>
-                        <PharmacyChatView user={user} onLogout={() => setUser(null)} />
-                    </PharmacyCartProvider>
-                )}
+                <PharmacyCartProvider>
+                    <PharmacyChatView user={user} onLogout={logout} />
+                </PharmacyCartProvider>
             </div>
         </div>
     );

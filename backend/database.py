@@ -143,86 +143,91 @@ def auto_seed():
 
     db = SessionLocal()
     try:
-        doctor_count = db.query(User).filter(User.role == "doctor").count()
-        if doctor_count > 0:
-            # Complete the flag file if missing
-            if not os.path.exists(flag_file):
-                with open(flag_file, "w") as f: f.write("seeded")
-            return 
-            
-        print("Doctor List Empty. Seeding Mock Data...")
-        
-        # 1. Create Mock Patients
-        patients_data = [
-            {"name": "Alice Smith", "phone": "9876543210", "email": "alice@example.com"},
-            {"name": "John Doe", "phone": "8877665544", "email": "john@example.com"},
-            {"name": "Sarah Miller", "phone": "7766554433", "email": "sarah@example.com"}
-        ]
-        
+        # 1. Ensure Doctors for ALL departments
+        target_depts = ["Cardiology", "Neurology", "Orthopedics", "General", "Gastroenterology", "Pediatrics", "Dermatology"]
+        for dept in target_depts:
+            count = db.query(User).filter(User.role == "doctor", User.department == dept).count()
+            if count == 0:
+                print(f" Seeding default doctor for {dept}...")
+                doc = User(
+                    full_name=f"Dr. {dept} Specialist",
+                    email=f"doc.{dept.lower()}@medicare.com",
+                    role=UserRole.DOCTOR,
+                    department=dept,
+                    hashed_password="mock_password"
+                )
+                db.add(doc)
+        db.commit()
+
+        # 2. Create Mock Patients if none
+        patient_count = db.query(User).filter(User.role == "patient").count()
         patients = []
-        for p_data in patients_data:
-            p = User(
-                full_name=p_data["name"],
-                phone=p_data["phone"],
-                email=p_data["email"],
-                role=UserRole.PATIENT,
-                hashed_password="mock_password"
-            )
-            db.add(p)
-            patients.append(p)
+        if patient_count == 0:
+            print("Seeding Mock Patients...")
+            patients_data = [
+                {"name": "Alice Smith", "phone": "9876543210", "email": "alice@example.com"},
+                {"name": "John Doe", "phone": "8877665544", "email": "john@example.com"},
+                {"name": "Sarah Miller", "phone": "7766554433", "email": "sarah@example.com"}
+            ]
+            for p_data in patients_data:
+                p = User(
+                    full_name=p_data["name"],
+                    phone=p_data["phone"],
+                    email=p_data["email"],
+                    role=UserRole.PATIENT,
+                    hashed_password="mock_password"
+                )
+                db.add(p)
+                patients.append(p)
+            db.commit()
+            for p in patients: db.refresh(p)
+        else:
+            patients = db.query(User).filter(User.role == "patient").all()
         
-        db.commit()
-        for p in patients: db.refresh(p)
-        
-        # 2. Add Mock Lab Tests & Clinic Appointments
-        appointments_data = [
-            {"name": "Complete Blood Count (CBC)", "type": "lab_test", "status": "pending"},
-            {"name": "Lipid Profile", "type": "lab_test", "status": "processing"},
-            {"name": "Diabetes Screen (HbA1c)", "type": "lab_test", "status": "ready", "result": "HbA1c: 5.8% (Pre-diabetic)"},
-            {"name": "General Consultation", "type": "clinic", "status": "pending"},
-            {"name": "Cardiology Follow-up", "type": "clinic", "status": "confirmed"}
-        ]
-        
-        for idx, appt_data in enumerate(appointments_data):
-            appt = Appointment(
-                patient_id=patients[idx % len(patients)].id,
-                appointment_time=datetime.now(),
-                type=appt_data["type"],
-                doctor_name=appt_data["name"],
-                status=appt_data["status"],
-                lab_result=appt_data.get("result")
-            )
-            db.add(appt)
+        # 3. Add Mock Appointments if none
+        appt_count = db.query(Appointment).count()
+        if appt_count == 0 and patients:
+            print("Seeding Mock Appointments...")
+            appointments_data = [
+                {"name": "Complete Blood Count (CBC)", "type": "lab_test", "status": "pending"},
+                {"name": "Lipid Profile", "type": "lab_test", "status": "processing"},
+                {"name": "Diabetes Screen (HbA1c)", "type": "lab_test", "status": "ready", "result": "HbA1c: 5.8% (Pre-diabetic)"},
+                {"name": "General Consultation", "type": "clinic", "status": "pending"},
+                {"name": "Cardiology Follow-up", "type": "clinic", "status": "confirmed"}
+            ]
+            for idx, appt_data in enumerate(appointments_data):
+                appt = Appointment(
+                    patient_id=patients[idx % len(patients)].id,
+                    appointment_time=datetime.now(),
+                    type=appt_data["type"],
+                    doctor_name=appt_data["name"],
+                    status=appt_data["status"],
+                    lab_result=appt_data.get("result")
+                )
+                db.add(appt)
+            db.commit()
 
-        # 3. Add Mock Pharmacy Orders
-        pharmacy_orders = [
-            {"data": "Amoxicillin 500mg - 1x Daily\nParacetamol - SOS", "status": "preparing"},
-            {"data": "Vitamin C - 1x Daily\nZinc Supplements", "status": "ready"},
-            {"data": "Lisinopril 10mg\nAtorvastatin 20mg", "status": "processing"}
-        ]
-        
-        for idx, order in enumerate(pharmacy_orders):
-            p_order = Prescription(
-                patient_id=patients[idx % len(patients)].id,
-                extracted_data=order["data"],
-                status=order["status"],
-                created_at=datetime.utcnow()
-            )
-            db.add(p_order)
+        # 4. Add Mock Pharmacy Orders if none
+        rx_count = db.query(Prescription).count()
+        if rx_count == 0 and patients:
+            print("Seeding Mock Pharmacy Orders...")
+            pharmacy_orders = [
+                {"data": "Amoxicillin 500mg - 1x Daily\nParacetamol - SOS", "status": "preparing"},
+                {"data": "Vitamin C - 1x Daily\nZinc Supplements", "status": "ready"},
+                {"data": "Lisinopril 10mg\nAtorvastatin 20mg", "status": "processing"}
+            ]
+            for idx, order in enumerate(pharmacy_orders):
+                p_order = Prescription(
+                    patient_id=patients[idx % len(patients)].id,
+                    extracted_data=order["data"],
+                    status=order["status"],
+                    created_at=datetime.utcnow()
+                )
+                db.add(p_order)
+            db.commit()
 
-        db.commit()
-        print(" Database Seeded with Patient and Queue Data Successfully!")
-
-        # Create flag file
+        print(" Database Sync & Seeding Completed Successfully!")
         with open(flag_file, "w") as f: f.write("seeded")
-
-        # 4. Add Mock Inventory (Medicines)
-        # Note: We can reuse the model if it exists, or just ensure some data.
-        # Looking at Dashboard.jsx, it expects items with image, name, brand, category, price, stock, expiryDate
-        # In the existing seed_db.py, there might be a Medicine model, but I'll check first.
-        # Actually, I'll just skip inventory seeding if I'm not sure about the model name 
-        # but wait, Dashboard.jsx calls /pharmacy/medicines.
-        # Let's check backend/routers/pharmacy.py to see the model.
         
     except Exception as e:
         print(f" Seeding Failed: {e}")

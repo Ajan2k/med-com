@@ -32,7 +32,11 @@ const LoginBubble = ({ onLoginSuccess }) => {
         await patientAPI.register(formData);
         // Auto-login after register
         const res = await login(formData.email, formData.password);
-        if (res.success && onLoginSuccess) onLoginSuccess();
+        if (res.success) {
+          if (onLoginSuccess) onLoginSuccess();
+        } else {
+          setError(res.message || "Registration succeeded, but auto-login failed. Please sign in manually.");
+        }
       }
       else if (mode === 'forgot') {
         // Mock recovery

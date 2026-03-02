@@ -24,6 +24,7 @@ class AppointmentRequest(BaseModel):
     date_str: str 
     time_slot: str 
     type: str 
+    symptoms: Optional[str] = None
 
 class LabRequest(BaseModel):
     patient_id: int
@@ -35,15 +36,22 @@ class LabRequest(BaseModel):
 @router.post("/chat")
 def health_chat(request: ChatRequest):
     analysis = ai_service.analyze_symptoms(request.message)
-    if analysis.get("danger_level") == "High":
-        return {
-            "response": f" ALERT: Your symptoms indicate high urgency ({analysis['department']}). Please book an appointment immediately.",
-            "recommend_action": "book_appointment",
-            "department": analysis['department']
-        }
-    
+    # Always recommend booking an appointment, regardless of danger level, 
+    # to enforce the appointment-only flow.
     ai_reply = ai_service.chat_response(request.message, request.history)
-    return {"response": ai_reply, "recommend_action": "none"}
+    
+    # If the AI failed or rate limited, don't show the booking prompt
+    error_flags = ["trouble processing", "too many requests", "unavailable"]
+    recommend_action = "book_appointment"
+    
+    if any(flag in ai_reply for flag in error_flags):
+        recommend_action = None
+
+    return {
+        "response": ai_reply, 
+        "recommend_action": recommend_action,
+        "department": analysis.get("department", "General")
+    }
 
 # --- 2. APPOINTMENT BOOKING ---
 @router.get("/doctors")
@@ -130,7 +138,8 @@ async def book_appointment(req: AppointmentRequest, db: Session = Depends(get_db
         appointment_time=appt_dt,
         type=req.type,
         zoom_link=zoom_url,
-        status=AppointmentStatus.PENDING
+        status=AppointmentStatus.PENDING,
+        symptoms_summary=req.symptoms
     )
     db.add(new_appt)
     db.commit()

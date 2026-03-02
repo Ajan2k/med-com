@@ -3,7 +3,7 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
     Calendar as CalendarIcon, CreditCard, Video, MapPin, CheckCircle,
     ArrowLeft, Stethoscope, Activity, Brain, Heart, ChevronRight,
-    ChevronLeft, Star, Clock, Info, ShieldCheck
+    ChevronLeft, Star, Clock, Info, ShieldCheck, Baby, Sparkles
 } from 'lucide-react';
 import { patientAPI } from '../services/api';
 
@@ -12,11 +12,15 @@ const DEPARTMENTS = [
     { id: 'Cardiology', name: 'Cardiology', icon: Heart, color: 'bg-red-100 text-red-600', desc: 'Heart health & cardiovascular care' },
     { id: 'Neurology', name: 'Neurology', icon: Brain, color: 'bg-purple-100 text-purple-600', desc: 'Brain, spine & nervous system' },
     { id: 'Orthopedics', name: 'Orthopedics', icon: Activity, color: 'bg-orange-100 text-orange-600', desc: 'Bone, joint & muscle specialist' },
+    { id: 'Gastroenterology', name: 'Gastroenterology', icon: Activity, color: 'bg-teal-100 text-teal-600', desc: 'Digestive system specialist' },
+    { id: 'Pediatrics', name: 'Pediatrics', icon: Baby, color: 'bg-pink-100 text-pink-600', desc: 'Child & adolescent health' },
+    { id: 'Dermatology', name: 'Dermatology', icon: Sparkles, color: 'bg-yellow-100 text-yellow-600', desc: 'Skin, hair & nail care' }
 ];
 
-const BookingFlow = ({ onBack, initialDoctor }) => {
-    const [step, setStep] = useState(initialDoctor ? 1 : 0);
-    const [selectedDept, setSelectedDept] = useState(initialDoctor ? initialDoctor.department : null);
+const BookingFlow = ({ onBack, initialDoctor, symptoms, suggestedDept }) => {
+    const defaultDept = initialDoctor ? initialDoctor.department : (suggestedDept || null);
+    const [step, setStep] = useState((initialDoctor || suggestedDept) ? 1 : 0);
+    const [selectedDept, setSelectedDept] = useState(defaultDept);
     const [doctors, setDoctors] = useState([]);
     const [selectedDoc, setSelectedDoc] = useState(initialDoctor || null);
 
@@ -78,7 +82,8 @@ const BookingFlow = ({ onBack, initialDoctor }) => {
                 doctor_id: Number(selectedDoc.id),
                 date_str: date,
                 time_slot: selectedSlot,
-                type: apptType
+                type: apptType,
+                symptoms: symptoms || null
             };
             await patientAPI.bookAppointment(payload);
             setBookingSuccess(true);
@@ -139,7 +144,7 @@ const BookingFlow = ({ onBack, initialDoctor }) => {
     }
 
     return (
-        <div className="flex flex-col min-h-[600px]">
+        <div className="flex flex-col w-full">
 
             {/* Header / Breadcrumbs */}
             <div className="flex items-center gap-6 mb-8">
@@ -337,14 +342,14 @@ const BookingFlow = ({ onBack, initialDoctor }) => {
                                                 <Video size={24} />
                                             </div>
                                             <span className={`text-xs font-black uppercase tracking-widest ${apptType === 'online' ? 'text-blue-600' : 'text-slate-400'}`}>Video Consult</span>
-                                            <span className="text-lg font-black text-slate-900">$25.00</span>
+                                            <span className="text-lg font-black text-slate-900">₹800</span>
                                         </button>
                                         <button onClick={() => setApptType('clinic')} className={`p-6 rounded-3xl border-2 flex flex-col items-center gap-3 transition-all ${apptType === 'clinic' ? 'border-blue-600 bg-blue-50/50' : 'border-slate-50 hover:border-slate-200'}`}>
                                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${apptType === 'clinic' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                                 <MapPin size={24} />
                                             </div>
                                             <span className={`text-xs font-black uppercase tracking-widest ${apptType === 'clinic' ? 'text-blue-600' : 'text-slate-400'}`}>In-Clinic Visit</span>
-                                            <span className="text-lg font-black text-slate-900">$40.00</span>
+                                            <span className="text-lg font-black text-slate-900">₹2,500</span>
                                         </button>
                                     </div>
                                 </div>
@@ -359,7 +364,7 @@ const BookingFlow = ({ onBack, initialDoctor }) => {
                                     </div>
                                     <div className="flex justify-between items-center pt-6 border-t border-slate-200">
                                         <span className="text-lg font-black text-slate-900">Total Amount</span>
-                                        <span className="text-3xl font-black text-blue-600 tracking-tighter">${apptType === 'online' ? '25.00' : '40.00'}</span>
+                                        <span className="text-3xl font-black text-blue-600 tracking-tighter">{apptType === 'online' ? '₹800' : '₹2,500'}</span>
                                     </div>
                                 </div>
                             </div>

@@ -11,12 +11,11 @@ import ReactMarkdown from 'react-markdown';
 import { patientAPI } from '../services/api';
 
 // Components
-import LoginBubble from '../components/LoginBubble';
 import LiquidButton from '../components/LiquidButton';
 import BookingFlow from '../features/BookingFlow';
 import MedicineFlow from '../features/MedicineFlow';
 
-const ChatPage = () => {
+const ChatPage = ({ onNavigatePortal }) => {
     const { user, loading, logout } = useAuth();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
@@ -49,16 +48,10 @@ const ChatPage = () => {
     const [labMode, setLabMode] = useState(null);
 
     useEffect(() => {
-        if (!loading) {
-            if (!user) {
-                setTimeout(() => {
-                    setMessages([{ role: 'bot', content: "Welcome to MediCare. Please sign in to access your health records.", type: 'login' }]);
-                }, 0);
-            } else {
-                setTimeout(() => {
-                    setMessages([{ role: 'bot', content: `Hello ${user.name}. I am your dedicated AI Health Assistant. How can I help you today?`, type: 'menu' }]);
-                }, 0);
-            }
+        if (!loading && user) {
+            setTimeout(() => {
+                setMessages([{ role: 'bot', content: `Hello ${user.name.split(' ')[0]}. How can I assist you today?`, type: 'menu' }]);
+            }, 0);
         }
     }, [user, loading]);
 
@@ -80,7 +73,7 @@ const ChatPage = () => {
             const { data } = await patientAPI.chat(input, messages);
             setMessages(prev => [...prev, { role: 'bot', content: data.response }]);
             if (data.recommend_action === 'book_appointment') {
-                setTimeout(() => setMessages(prev => [...prev, { role: 'bot', content: "Would you like to schedule that now?", type: 'action_book' }]), 800);
+                setTimeout(() => setMessages(prev => [...prev, { role: 'bot', content: "Here are your options:", type: 'menu' }]), 800);
             }
         } catch {
             setMessages(prev => [...prev, { role: 'bot', content: "Connectivity Issue. Please try again." }]);
@@ -89,7 +82,23 @@ const ChatPage = () => {
 
     const handleActionBook = () => {
         setPreselectedDoctor(null);
-        setActiveFlow('booking');
+        const lastUser = [...messages].reverse().find(m => m.role === 'user');
+        const symptomsText = lastUser ? lastUser.content : null;
+
+        // Try to grep the AI's response for a recognized department
+        const lastBot = [...messages].reverse().find(m => m.role === 'bot' && m.type !== 'menu');
+        const botText = lastBot ? lastBot.content.toLowerCase() : '';
+        const departments = ['General', 'Cardiology', 'Neurology', 'Orthopedics', 'Gastroenterology', 'Pediatrics', 'Dermatology'];
+        let matchedDept = null;
+
+        for (const dept of departments) {
+            if (botText.includes(dept.toLowerCase())) {
+                matchedDept = dept;
+                break;
+            }
+        }
+
+        setMessages(prev => [...prev, { role: 'bot', type: 'booking_widget', symptoms: symptomsText, suggestedDept: matchedDept }]);
     };
 
     const handleSearch = async (query) => {
@@ -186,20 +195,10 @@ const ChatPage = () => {
     };
 
     const handleHealthQuery = () => {
-        setActiveFlow(null);
-        setMessages(prev => [...prev, { role: 'bot', content: "I am ready. Please describe your symptoms or ask a health question...", type: 'text' }]);
+        setMessages(prev => [...prev, { role: 'bot', content: "Please describe your symptoms...", type: 'text' }]);
     };
 
-    const renderMenuButtons = () => (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-8 w-full">
-            <LiquidButton icon={Calendar} label="Book Appointment" onClick={() => { setPreselectedDoctor(null); setActiveFlow('booking'); }} />
-            <LiquidButton icon={Pill} label="Order Medicine" onClick={() => setActiveFlow('medicine')} />
-            <LiquidButton icon={Activity} label="Lab Tests" onClick={() => { setLabStep('list'); setActiveFlow('lab'); }} />
-            <LiquidButton icon={FileText} label="Health Records" onClick={loadStatus} />
-            <LiquidButton icon={Stethoscope} label="Contact Doctor" onClick={() => { setMsgStep('compose'); setActiveFlow('consult'); }} />
-            <LiquidButton icon={Brain} label="AI Diagnostics" onClick={handleHealthQuery} />
-        </div>
-    );
+
 
     return (
         <div className="h-screen bg-[#F8FAFC] flex font-sans antialiased text-slate-800 overflow-hidden">
@@ -265,7 +264,7 @@ const ChatPage = () => {
                             <ShieldCheck size={20} />
                         </div>
                         <div>
-                            <h2 className="font-extrabold text-slate-900 text-lg">AI Health Assistant</h2>
+                            <h2 className="font-extrabold text-slate-900 text-lg">Appointment Booking Assistant</h2>
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Neural Core Active</p>
@@ -361,12 +360,29 @@ const ChatPage = () => {
                                             }}>{msg.content}</ReactMarkdown>
                                         </div>
                                     )}
-                                    {msg.type === 'login' && <div className="mt-4 w-full max-w-sm"><LoginBubble /></div>}
-                                    {msg.type === 'menu' && renderMenuButtons()}
+                                    {msg.type === 'menu' && (
+                                        <div className="flex flex-col gap-2 mt-4 ml-14">
+                                            <button onClick={handleActionBook} className="text-left w-fit px-6 py-3 bg-white border-2 border-slate-100 hover:border-blue-500 rounded-2xl hover:bg-slate-50 transition-all font-bold text-sm shadow-sm flex items-center justify-between gap-6 group">
+                                                Book Appointment <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                            </button>
+                                            <button onClick={handleHealthQuery} className="text-left w-fit px-6 py-3 bg-white border-2 border-slate-100 hover:border-blue-500 rounded-2xl hover:bg-slate-50 transition-all font-bold text-sm shadow-sm flex items-center justify-between gap-6 group">
+                                                Check Symptoms <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                                            </button>
+                                        </div>
+                                    )}
                                     {msg.type === 'action_book' && (
                                         <button onClick={handleActionBook} className="mt-4 bg-blue-600 text-white px-8 py-3.5 rounded-2xl text-sm font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center gap-3 active:scale-95">
                                             Schedule Appointment <ChevronRight size={18} />
                                         </button>
+                                    )}
+                                    {msg.type === 'booking_widget' && (
+                                        <div className="mt-6 w-full max-w-[850px] bg-slate-50 rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+                                            <div className="p-8">
+                                                <BookingFlow initialDoctor={preselectedDoctor} symptoms={msg.symptoms} suggestedDept={msg.suggestedDept} onBack={() => {
+                                                    setMessages(prev => [...prev, { role: 'bot', content: 'What else can I help you with today?', type: 'menu' }]);
+                                                }} />
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             </Motion.div>
@@ -389,7 +405,7 @@ const ChatPage = () => {
                                 onChange={e => setInput(e.target.value)}
                                 onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
                                 className="flex-1 bg-transparent text-slate-800 text-[16px] font-medium outline-none placeholder:text-slate-400"
-                                placeholder="Describe your health concern or ask a medical question..."
+                                placeholder="E.g., I would like to book an appointment..."
                             />
                             <button
                                 onClick={handleSendMessage}
@@ -412,7 +428,6 @@ const ChatPage = () => {
                                         <X size={20} />
                                     </button>
                                     <h2 className="font-extrabold text-slate-900 text-lg uppercase tracking-tight">
-                                        {activeFlow === 'booking' && 'Appointment Scheduler'}
                                         {activeFlow === 'medicine' && 'Pharmacy Hub'}
                                         {activeFlow === 'lab' && 'Diagnostic Lab'}
                                         {activeFlow === 'status' && 'Patient Dashboard'}
@@ -423,16 +438,20 @@ const ChatPage = () => {
 
                             <div className="flex-1 overflow-y-auto p-10 bg-slate-50/30">
                                 <div className="max-w-5xl mx-auto">
-                                    {activeFlow === 'booking' && <BookingFlow initialDoctor={preselectedDoctor} onBack={() => setActiveFlow(null)} />}
-                                    {activeFlow === 'medicine' && <MedicineFlow onBack={() => setActiveFlow(null)} />}
+                                    {activeFlow === 'booking' && (
+                                        <div className="py-8">
+                                            <BookingFlow preselectedDoctor={preselectedDoctor} onComplete={() => setActiveFlow('status')} />
+                                        </div>
+                                    )}
+                                    {activeFlow === 'medicine' && <MedicineFlow onBack={() => setActiveFlow(null)} onNavigatePortal={onNavigatePortal} />}
 
                                     {/* LAB FLOW */}
                                     {activeFlow === 'lab' && labStep === 'list' && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {[
-                                                { name: "Full Body Checkup", price: "$50", time: "24 hrs", desc: "Comprehensive screening for all major organs." },
-                                                { name: "Blood Sugar (Fasting)", price: "$15", time: "6 hrs", desc: "Essential for diabetes monitoring." },
-                                                { name: "Thyroid Profile", price: "$25", time: "12 hrs", desc: "T3, T4, and TSH level analysis." }
+                                                { name: "Full Body Checkup", price: "₹4,000", time: "24 hrs", desc: "Comprehensive screening for all major organs." },
+                                                { name: "Blood Sugar (Fasting)", price: "₹1,200", time: "6 hrs", desc: "Essential for diabetes monitoring." },
+                                                { name: "Thyroid Profile", price: "₹2,000", time: "12 hrs", desc: "T3, T4, and TSH level analysis." }
                                             ].map((test, i) => (
                                                 <button key={i} onClick={() => handleTestSelect(test)} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-left hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/5 transition-all group">
                                                     <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Activity size={24} /></div>
@@ -682,6 +701,19 @@ const ChatPage = () => {
                     )}
                 </AnimatePresence>
             </main>
+
+            {/* RIGHT SIDEBAR (MENU OPTIONS) */}
+            <aside className="hidden xl:flex w-80 bg-white border-l border-slate-100 flex-col shrink-0 overflow-y-auto">
+                <div className="p-8 pb-12 flex flex-col gap-5 pt-24">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-2">Quick Services</h3>
+                    <LiquidButton icon={Calendar} label="Book Appointment" onClick={() => { setPreselectedDoctor(null); setActiveFlow('booking'); }} />
+                    <LiquidButton icon={Pill} label="Order Medicine" onClick={() => onNavigatePortal && onNavigatePortal('pharmacy')} />
+                    <LiquidButton icon={Activity} label="Lab Tests" onClick={() => { setLabStep('list'); setActiveFlow('lab'); }} />
+                    <LiquidButton icon={FileText} label="Health Records" onClick={loadStatus} />
+                    <LiquidButton icon={Stethoscope} label="Contact Doctor" onClick={() => { setMsgStep('compose'); setActiveFlow('consult'); }} />
+                    <LiquidButton icon={Brain} label="AI Diagnostics" onClick={handleHealthQuery} />
+                </div>
+            </aside>
         </div>
     );
 };

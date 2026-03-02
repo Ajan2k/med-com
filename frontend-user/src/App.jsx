@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ChatPage from './pages/ChatPage';
 import PharmacyApp from './pharmacy/PharmacyApp';
+import LoginBubble from './components/LoginBubble';
 import { Pill, Stethoscope } from 'lucide-react';
 
 const PortalSelector = ({ onSelect }) => (
@@ -36,21 +37,44 @@ const PortalSelector = ({ onSelect }) => (
   </div>
 );
 
-const App = () => {
+const AppContent = () => {
+  const { user, loading } = useAuth();
   const [selectedPortal, setSelectedPortal] = useState(null);
 
-  if (!selectedPortal) return <PortalSelector onSelect={setSelectedPortal} />;
+  if (loading) {
+    return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-black text-white tracking-tight mb-2">MediCare<span className="text-blue-400">+</span></h1>
+            <p className="text-slate-400 text-sm">Sign in to access your portals</p>
+          </div>
+          <LoginBubble />
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedPortal) {
+    return (
+      <div className="relative">
+        <PortalSelector onSelect={setSelectedPortal} />
+      </div>
+    );
+  }
 
   if (selectedPortal === 'chat') {
     return (
-      <AuthProvider>
-        <div className="relative">
-          <button onClick={() => setSelectedPortal(null)} className="fixed top-4 left-4 z-50 bg-slate-800/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10">
-            ← Back to Portal
-          </button>
-          <ChatPage />
-        </div>
-      </AuthProvider>
+      <div className="relative">
+        <button onClick={() => setSelectedPortal(null)} className="fixed top-4 left-4 z-50 bg-slate-800/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10">
+          ← Back to Portal
+        </button>
+        <ChatPage onNavigatePortal={setSelectedPortal} />
+      </div>
     );
   }
 
@@ -63,5 +87,11 @@ const App = () => {
     </div>
   );
 };
+
+const App = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;

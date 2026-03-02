@@ -267,7 +267,7 @@ const Dashboard = ({ onLogout }) => {
                             </div>
                         )}
 
-                        <button 
+                        <button
                             onClick={forceSync}
                             className="w-full mt-4 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-bold py-2 rounded-xl border border-blue-500/30 transition-all flex items-center justify-center gap-2"
                         >
@@ -313,6 +313,55 @@ const Dashboard = ({ onLogout }) => {
                     {/* OVERVIEW TAB */}
                     {activeTab === 'overview' && (
                         <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
+
+                            {/* PROJECT ECOSYSTEM SNAPSHOT */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                                <div className="bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl flex items-center justify-between shadow-sm group hover:bg-white/60 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Users size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient Portal</p>
+                                            <p className="text-xs font-bold text-slate-700">user-portal:5173</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-green-100/50 px-2 py-1 rounded-full border border-green-200/50">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-[10px] font-black text-green-600 uppercase">Online</span>
+                                    </div>
+                                </div>
+                                <div className="bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl flex items-center justify-between shadow-sm group hover:bg-white/60 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Truck size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pharmacy Store</p>
+                                            <p className="text-xs font-bold text-slate-700">store-portal:5173</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-green-100/50 px-2 py-1 rounded-full border border-green-200/50">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-[10px] font-black text-green-600 uppercase">Online</span>
+                                    </div>
+                                </div>
+                                <div className="bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-2xl flex items-center justify-between shadow-sm group hover:bg-white/60 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <RefreshCw size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin Backend</p>
+                                            <p className="text-xs font-bold text-slate-700">api-server:8000</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-green-100/50 px-2 py-1 rounded-full border border-green-200/50">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-[10px] font-black text-green-600 uppercase">Healthy</span>
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* WELCOME HERO BANNER */}
                             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 rounded-[2rem] p-10 text-white shadow-2xl shadow-indigo-500/20 relative overflow-hidden flex justify-between items-center group">
@@ -500,48 +549,147 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* OVERVIEW - RECENT ACTIVITY SUMMARY */}
                     {activeTab === 'overview' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* UPCOMING APPOINTMENTS */}
-                            <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
-                                <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
-                                    <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><Clock size={18} className="text-blue-600" /></div> Upcoming Consults</h3>
-                                    <button onClick={() => setActiveTab('appointments')} className="text-xs font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-full hover:bg-blue-600 hover:text-white transition-colors">View All Schedule</button>
-                                </div>
-                                <div className="divide-y divide-slate-50">
-                                    {appointments.filter(a => a.type !== 'lab_test' && a.status === 'pending').slice(0, 5).map(appt => (
-                                        <div key={appt.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
-                                            <div>
-                                                <p className="font-bold text-slate-700 text-sm">Patient #{appt.patient_id}</p>
-                                                <p className="text-xs text-slate-400">{new Date(appt.appointment_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* UPCOMING APPOINTMENTS */}
+                                <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+                                    <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
+                                        <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><Clock size={18} className="text-blue-600" /></div> Upcoming Consults</h3>
+                                        <button onClick={() => setActiveTab('appointments')} className="text-xs font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-full hover:bg-blue-600 hover:text-white transition-colors">View All Schedule</button>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {appointments.filter(a => a.type !== 'lab_test' && a.status === 'pending').slice(0, 5).map(appt => (
+                                            <div key={appt.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
+                                                <div>
+                                                    <p className="font-bold text-slate-700 text-sm">Patient #{appt.patient_id}</p>
+                                                    <p className="text-xs text-slate-400">{new Date(appt.appointment_time).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-1 rounded">Pending</span>
                                             </div>
-                                            <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-1 rounded">Pending</span>
-                                        </div>
-                                    ))}
-                                    {appointments.filter(a => a.type !== 'lab_test' && a.status === 'pending').length === 0 && (
-                                        <div className="p-8 text-center text-slate-400 text-sm">No upcoming consults.</div>
-                                    )}
+                                        ))}
+                                        {appointments.filter(a => a.type !== 'lab_test' && a.status === 'pending').length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-sm">No upcoming consults.</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* PENDING ORDERS */}
+                                <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+                                    <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
+                                        <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><AlertTriangle size={18} className="text-amber-500" /></div> Urgent Rx Orders</h3>
+                                        <button onClick={() => setActiveTab('pharmacy')} className="text-xs font-bold text-amber-600 bg-amber-50 px-4 py-2 rounded-full hover:bg-amber-500 hover:text-white transition-colors">Go to Pharmacy</button>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {orders.filter(o => o.status === 'processing' || o.status === 'preparing').slice(0, 5).map(order => (
+                                            <div key={order.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
+                                                <div>
+                                                    <p className="font-bold text-slate-700 text-sm">Order #{order.id}</p>
+                                                    <p className="text-xs text-slate-400">Needs fulfillment</p>
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase bg-amber-50 text-amber-600 px-2 py-1 rounded">Preparing</span>
+                                            </div>
+                                        ))}
+                                        {orders.filter(o => o.status === 'processing' || o.status === 'preparing').length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-sm">All pharmacy orders complete.</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* PENDING ORDERS */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                                {/* LAB REPORTS HIGHLIGHTS */}
+                                <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+                                    <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
+                                        <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><TestTube size={18} className="text-purple-600" /></div> Latest Lab Results</h3>
+                                        <button onClick={() => setActiveTab('lab')} className="text-xs font-bold text-purple-600 bg-purple-50 px-4 py-2 rounded-full hover:bg-purple-600 hover:text-white transition-colors">Open Lab Queue</button>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {appointments.filter(a => a.type === 'lab_test' && a.status === 'ready').slice(0, 5).map(lab => (
+                                            <div key={lab.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-all group/row">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover/row:scale-110 transition-transform">
+                                                        <FileText size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-700 text-sm">{lab.doctor_name}</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium">Patient #{lab.patient_id} • {lab.lab_result?.substring(0, 30)}...</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-lg">Validated</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {appointments.filter(a => a.type === 'lab_test' && a.status === 'ready').length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-sm">No verified results yet.</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* INVENTORY ALERTS */}
+                                <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
+                                    <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
+                                        <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><Package size={18} className="text-rose-500" /></div> Inventory Criticals</h3>
+                                        <button onClick={() => setActiveTab('inventory')} className="text-xs font-bold text-rose-600 bg-rose-50 px-4 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-colors">Manage Stock</button>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {inventory.filter(item => (item.stock || 0) < 15).slice(0, 5).map((item, idx) => (
+                                            <div key={idx} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-all">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 overflow-hidden border border-rose-100/40 shadow-sm">
+                                                        {item.image ? <img src={item.image} className="w-full h-full object-cover" /> : <Package size={16} />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-700 text-sm">{item.name}</p>
+                                                        <p className="text-[10px] text-slate-500 font-medium">Category: {item.category || 'General'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm font-black text-rose-600">{item.stock} left</p>
+                                                    <p className="text-[10px] text-slate-300 uppercase font-black tracking-tighter">Low stock</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {inventory.filter(item => (item.stock || 0) < 15).length === 0 && (
+                                            <div className="p-8 text-center text-slate-400 text-sm">Inventory levels healthy.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* RECENT TRANSACTIONS LEDGER SNAPSHOT */}
                             <div className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden flex flex-col group/card hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all">
                                 <div className="p-6 border-b border-slate-100/60 flex justify-between items-center bg-white/50">
-                                    <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><AlertTriangle size={18} className="text-amber-500" /></div> Urgent Rx Orders</h3>
-                                    <button onClick={() => setActiveTab('pharmacy')} className="text-xs font-bold text-amber-600 bg-amber-50 px-4 py-2 rounded-full hover:bg-amber-500 hover:text-white transition-colors">Go to Pharmacy</button>
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-3 text-lg"><div className="bg-white p-1.5 shadow-sm border border-slate-100 rounded-lg"><Receipt size={18} className="text-emerald-500" /></div> Recent Transactions</h3>
+                                    <button onClick={() => setActiveTab('billing')} className="text-xs font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full hover:bg-emerald-600 hover:text-white transition-colors">View All Ledger</button>
                                 </div>
-                                <div className="divide-y divide-slate-50">
-                                    {orders.filter(o => o.status === 'processing' || o.status === 'preparing').slice(0, 5).map(order => (
-                                        <div key={order.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50 transition-colors">
-                                            <div>
-                                                <p className="font-bold text-slate-700 text-sm">Order #{order.id}</p>
-                                                <p className="text-xs text-slate-400">Needs fulfillment</p>
-                                            </div>
-                                            <span className="text-[10px] font-bold uppercase bg-amber-50 text-amber-600 px-2 py-1 rounded">Preparing</span>
-                                        </div>
-                                    ))}
-                                    {orders.filter(o => o.status === 'processing' || o.status === 'preparing').length === 0 && (
-                                        <div className="p-8 text-center text-slate-400 text-sm">All pharmacy orders complete.</div>
-                                    )}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-50/50 border-b border-slate-100">
+                                            <tr>
+                                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Invoice ID</th>
+                                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Patient</th>
+                                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Amount</th>
+                                                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {mockBillingData.slice(0, 4).map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-4"><p className="text-xs font-bold text-slate-800 tracking-tight">{item.id}</p></td>
+                                                    <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.patientName}</p></td>
+                                                    <td className="p-4"><p className="text-xs font-black text-slate-800">₹{item.amount}</p></td>
+                                                    <td className="p-4">
+                                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-tight ${item.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' :
+                                                                item.status === 'Pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
+                                                            }`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
