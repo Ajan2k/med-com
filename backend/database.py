@@ -199,9 +199,22 @@ def auto_seed():
                 {"role": UserRole.LAB, "perms": {"manage_users": False, "manage_roles": False, "manage_appointments": False, "manage_lab": True, "manage_pharmacy": False, "manage_inventory": False}},
                 {"role": UserRole.PHARMACIST, "perms": {"manage_users": False, "manage_roles": False, "manage_appointments": False, "manage_lab": False, "manage_pharmacy": True, "manage_inventory": True}}
             ]
-            for p_data in default_perms:
-                rp = RolePermission(role_name=p_data["role"], permissions=p_data["perms"])
-                db.add(rp)
+            for p in default_perms:
+                db.add(RolePermission(role_name=p["role"], permissions=p["perms"]))
+            db.commit()
+
+        # 2. Seed Medications (Pharmacy)
+        meds_count = db.query(Medication).count()
+        if meds_count == 0:
+            print(" Seeding mock medications...")
+            mock_meds = [
+                {"name": "Paracetamol 500mg", "stock": 1000, "price": 5.0, "supplier": "PharmaCorp", "description": "Pain relief & fever reducer.", "category": "tablet", "unit": "strip"},
+                {"name": "Amoxicillin 250mg", "stock": 500, "price": 45.0, "supplier": "HealthPlus", "description": "Antibiotic.", "category": "capsule", "unit": "bottle"},
+                {"name": "Cough Syrup JS", "stock": 200, "price": 85.0, "supplier": "LiquidMeds", "description": "Dry cough relief.", "category": "syrup", "unit": "bottle"},
+                {"name": "Vitamin C 1000mg", "stock": 1500, "price": 30.0, "supplier": "Vitamix", "description": "Immune booster.", "category": "tablet", "unit": "strip"}
+            ]
+            for m in mock_meds:
+                db.add(Medication(**m))
             db.commit()
 
         # 2. Create Mock Patients if none
@@ -282,3 +295,48 @@ def auto_seed():
 
 if __name__ == "__main__":
     create_tables()
+
+def update_mock_passwords():
+    import sys
+    import os
+    # Add the parent directory to sys.path so 'backend.security' works
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from backend.security import get_password_hash
+    from backend.database import User, UserRole
+    db = SessionLocal()
+    try:
+        def upsert_user(email, role, raw_pass, dept=None, name='Test Staff'):
+            u = db.query(User).filter(User.email == email).first()
+            if not u:
+                u = User(email=email, role=role, full_name=name)
+                if dept: u.department = dept
+                db.add(u)
+            u.hashed_password = get_password_hash(raw_pass)
+            return u
+
+        upsert_user('doc.cardiology@medicare.com', UserRole.DOCTOR, 'doctor123', 'Cardiology', 'Dr. Cardio')
+        upsert_user('doc.neurology@medicare.com', UserRole.DOCTOR, 'doctor123', 'Neurology', 'Dr. Neuro')
+        upsert_user('doc.orthopedics@medicare.com', UserRole.DOCTOR, 'doctor123', 'Orthopedics', 'Dr. Ortho')
+        upsert_user('doc.general@medicare.com', UserRole.DOCTOR, 'doctor123', 'General', 'Dr. General')
+        upsert_user('doc.gastroenterology@medicare.com', UserRole.DOCTOR, 'doctor123', 'Gastroenterology', 'Dr. Gastro')
+        upsert_user('doc.pediatrics@medicare.com', UserRole.DOCTOR, 'doctor123', 'Pediatrics', 'Dr. Peds')
+        upsert_user('doc.dermatology@medicare.com', UserRole.DOCTOR, 'doctor123', 'Dermatology', 'Dr. Derm')
+        upsert_user('lab@medicare.com', UserRole.LAB, 'lab123', name='Lab Tech')
+        upsert_user('pharmacy@medicare.com', UserRole.PHARMACIST, '12345', name='Pharmacist')
+
+        # Also patch any generic ones left over
+        users = db.query(User).filter(User.hashed_password == "mock_password").all()
+        if users:
+            for user in users:
+                if user.role == "doctor": user.hashed_password = get_password_hash("doctor123")
+                elif user.role == "lab_technician": user.hashed_password = get_password_hash("lab123")
+                elif user.role == "pharmacist": user.hashed_password = get_password_hash("12345")
+                elif user.role == "admin": user.hashed_password = get_password_hash("admin123")
+        db.commit()
+    except Exception as e:
+        print(f" Password Update Error: {e}")
+    finally:
+        db.close()
+
+# Unconditionally run to patch existing databases on reload
+update_mock_passwords()

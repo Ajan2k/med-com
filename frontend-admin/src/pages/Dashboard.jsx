@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { adminAPI } from '../services/adminApi';
 import io from 'socket.io-client';
-import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus, Shield } from 'lucide-react';
+import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, CheckCircle2, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus, Shield, ArrowLeft } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import AppointmentsCalendar from '../components/AppointmentsCalendar';
@@ -66,10 +66,15 @@ const mockBillingData = [
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const socket = io(API_URL);
 
-const Dashboard = ({ onLogout }) => {
+const Dashboard = ({ onLogout, onBack }) => {
     const rawRole = localStorage.getItem('admin_role') || 'Admin';
     const adminRole = rawRole.toLowerCase();
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState(() => {
+        if (adminRole === 'doctor') return 'doctor_dashboard';
+        if (adminRole === 'lab_technician') return 'lab';
+        if (adminRole === 'pharmacist') return 'pharmacy';
+        return 'overview';
+    });
     const [appointments, setAppointments] = useState([]);
     const [orders, setOrders] = useState([]);
     const [inventory, setInventory] = useState([]);
@@ -100,6 +105,7 @@ const Dashboard = ({ onLogout }) => {
     const [showProfileMenu, setShowProfileMenu] = useState(false); // NEW: Dropdown menu for profile
 
     const adminName = localStorage.getItem('admin_name') || 'Staff';
+    const adminId = localStorage.getItem('admin_id');
 
     const fetchData = async () => {
         try {
@@ -114,7 +120,14 @@ const Dashboard = ({ onLogout }) => {
             const invData = Array.isArray(invRes?.data) ? invRes.data : [];
             const docData = Array.isArray(docRes?.data) ? docRes.data : [];
 
-            setAppointments(apptData);
+            // Filter appointments if the user is a specific doctor
+            let filteredAppts = apptData;
+            if (adminRole === 'doctor' && adminId) {
+                // If they are a doctor, only show their appointments OR generic lab tests
+                filteredAppts = apptData.filter(a => String(a?.doctor_id) === String(adminId) || a?.type === 'lab_test');
+            }
+
+            setAppointments(filteredAppts);
             setOrders(rxData);
             setInventory(invData);
             setAllDoctors(docData);
@@ -129,8 +142,8 @@ const Dashboard = ({ onLogout }) => {
             }
 
             setStats({
-                doctors: (apptData || []).filter(a => a?.type !== 'lab_test' && a?.status?.toLowerCase() === 'pending').length,
-                lab: (apptData || []).filter(a => a?.type === 'lab_test' && a?.status?.toLowerCase() !== 'completed').length,
+                doctors: (filteredAppts || []).filter(a => a?.type !== 'lab_test' && a?.status?.toLowerCase() === 'pending').length,
+                lab: (apptData || []).filter(a => a?.type === 'lab_test' && a?.status?.toLowerCase() !== 'completed').length, // Admins/Labs see all lab tests stats
                 pharmacy: (rxData || []).filter(o => o?.status?.toLowerCase() === 'preparing' || o?.status?.toLowerCase() === 'pending').length,
                 inventory: (invData || []).length
             });
@@ -273,23 +286,33 @@ const Dashboard = ({ onLogout }) => {
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none"></div>
                 <div className="relative z-10 px-6 flex-1">
                     <div
-                        className="flex items-center gap-4 mb-12 px-2 cursor-pointer group"
+                        className="flex items-center gap-4 mb-6 px-2 cursor-pointer group"
                         onClick={() => setActiveTab('overview')}
                     >
                         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/20 text-white group-hover:shadow-blue-500/40 transition-shadow">M</div>
                         <h1 className="font-black text-xl tracking-tight">MediCare<span className="text-blue-400 font-medium">Admin</span></h1>
                     </div>
 
+                    {/* TOP LEVEL ACTION */}
+                    <button onClick={onBack} className="flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-3 mb-8 transition-colors w-full text-left text-slate-300 hover:text-white group">
+                        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform text-blue-400" />
+                        <span className="text-sm font-bold tracking-wide">Switch Portals</span>
+                    </button>
+
                     <div className="space-y-1">
                         <p className="px-3 text-xs font-bold text-slate-500 uppercase mb-2 mt-4">Workspace</p>
 
                         {/* FULL ACCESS FOR ALL ADMIN LOGINS */}
-                        <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="overview" Icon={Activity} label="Overview" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="doctor_dashboard" Icon={Activity} label="Doctor Dashboard" count={0} visible={adminRole === 'doctor'} activeTab={activeTab} setActiveTab={setActiveTab} />
+
+                        <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={myPerms.manage_appointments} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={myPerms.manage_lab} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={myPerms.manage_pharmacy} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={myPerms.manage_inventory} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
+
                         <div className="my-2 border-t border-slate-800/50"></div>
                         <SidebarItem id="users" Icon={Users} label="User Management" count={0} visible={myPerms.manage_users} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="roles" Icon={Shield} label="Roles & Permissions" count={0} visible={myPerms.manage_roles || adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -349,10 +372,12 @@ const Dashboard = ({ onLogout }) => {
                     </div>
                 </div>
 
-                <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white px-3 py-2 transition-colors mt-6">
-                    <LogOut size={18} />
-                    <span className="text-sm font-medium">Sign Out</span>
-                </button>
+                <div className="mt-6 border-t border-slate-800/50 pt-4 px-6 flex flex-col gap-2">
+                    <button onClick={onLogout} className="flex items-center justify-center gap-3 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl px-3 py-3 transition-colors w-full text-center">
+                        <LogOut size={16} />
+                        <span className="text-sm font-bold">Secure Sign Out</span>
+                    </button>
+                </div>
             </div>
 
             {/* MAIN CONTENT */}
@@ -406,6 +431,79 @@ const Dashboard = ({ onLogout }) => {
 
                 {/* DASHBOARD CONTENT */}
                 <div className="flex-1 overflow-y-auto p-10 relative z-0 scroll-smooth">
+
+                    {/* DOCTOR DASHBOARD TAB */}
+                    {activeTab === 'doctor_dashboard' && (
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
+                            {/* WELCOME HERO BANNER */}
+                            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group">
+                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
+                                <div className="relative z-10">
+                                    <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Dr. {adminName}! 🩺</h2>
+                                    <p className="text-blue-100/90 font-medium text-lg max-w-xl">Have a great day ahead! Here is your daily schedule and pending tasks for today.</p>
+                                </div>
+                                <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
+                                    <p className="text-xs font-black text-indigo-200 uppercase tracking-widest mb-1">Today's Date</p>
+                                    <p className="text-xl font-black tracking-tight">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                                </div>
+                            </div>
+
+                            {/* STATS GRID */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
+                                    <div className="relative z-10 flex justify-between items-center w-full">
+                                        <div>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Today's Appts</p>
+                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => new Date(a.appointment_time).toDateString() === new Date().toDateString()).length || 0}</h3>
+                                        </div>
+                                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                                            <Calendar size={26} />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-blue-500 font-bold mt-4 cursor-pointer">View Schedule &rarr;</p>
+                                </div>
+
+                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
+                                    <div className="relative z-10 flex justify-between items-center w-full">
+                                        <div>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pending Consults</p>
+                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.status === 'pending' || a.status === 'rescheduled').length || 0}</h3>
+                                        </div>
+                                        <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30">
+                                            <Users size={26} />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-amber-500 font-bold mt-4 cursor-pointer">Review Patients &rarr;</p>
+                                </div>
+
+                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('lab')}>
+                                    <div className="relative z-10 flex justify-between items-center w-full">
+                                        <div>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Lab Results</p>
+                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.type === 'lab_test' && a.status === 'completed').length || 0}</h3>
+                                        </div>
+                                        <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                                            <Activity size={26} />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-purple-500 font-bold mt-4 cursor-pointer">Review Reports &rarr;</p>
+                                </div>
+
+                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
+                                    <div className="relative z-10 flex justify-between items-center w-full">
+                                        <div>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Completed</p>
+                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.status === 'completed' && a.type === 'consultation').length || 0}</h3>
+                                        </div>
+                                        <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                                            <CheckCircle2 size={26} />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-emerald-500 font-bold mt-4 cursor-pointer">Consults Finished &rarr;</p>
+                                </div>
+                            </div>
+                        </Motion.div>
+                    )}
 
                     {/* OVERVIEW TAB */}
                     {activeTab === 'overview' && (
@@ -892,6 +990,22 @@ const Dashboard = ({ onLogout }) => {
                     {/* LAB VIEW: TEST REQUESTS */}
                     {activeTab === 'lab' && (
                         <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+
+                            {/* LAB WELCOME BANNER */}
+                            {adminRole === 'lab_technician' && (
+                                <div className="bg-gradient-to-r from-purple-700 to-fuchsia-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group mb-4">
+                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
+                                    <div className="relative z-10">
+                                        <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Lab Staff {adminName}! 🔬</h2>
+                                        <p className="text-purple-100/90 font-medium text-lg max-w-xl">Manage your queue. You have {appointments.filter(a => a.type === 'lab_test' && a.status === 'pending').length} new samples to collect today.</p>
+                                    </div>
+                                    <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
+                                        <p className="text-xs font-black text-fuchsia-200 uppercase tracking-widest mb-1">Today's Date</p>
+                                        <p className="text-xl font-black tracking-tight">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
                                 <div>
                                     <h3 className="font-bold text-slate-800 text-lg">Lab Queue</h3>
@@ -936,28 +1050,46 @@ const Dashboard = ({ onLogout }) => {
 
                     {/* PHARMACY VIEW */}
                     {activeTab === 'pharmacy' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-8">
-                            {orders.map(order => (
-                                <div key={order.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
-                                    <div className="flex justify-between mb-4">
-                                        <div>
-                                            <h3 className="font-bold text-slate-800 text-lg">Rx Order #{order.id}</h3>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{order.patient_name} • {order.patient_phone}</p>
-                                        </div>
-                                        <span className="text-xs font-bold uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">{order.status}</span>
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+
+                            {/* PHARMACY WELCOME BANNER */}
+                            {adminRole === 'pharmacist' && (
+                                <div className="bg-gradient-to-r from-emerald-600 to-teal-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group mb-4">
+                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
+                                    <div className="relative z-10">
+                                        <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Pharmacist {adminName}! 💊</h2>
+                                        <p className="text-emerald-100/90 font-medium text-lg max-w-xl">There are {orders.filter(o => o.status === 'processing' || o.status === 'preparing').length} orders waiting to be fulfilled today.</p>
                                     </div>
-                                    <div className="h-28 bg-slate-50 rounded-2xl p-4 mb-6 text-xs font-mono text-slate-600 overflow-y-auto border border-slate-100/60 shadow-inner">
-                                        {order.extracted_data || "Reading prescription..."}
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button onClick={() => handleStatus('prescription', order.id, 'ready')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30">Mark Ready</button>
-                                        <button onClick={() => handleStatus('prescription', order.id, 'delivered')} className="flex-1 bg-blue-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">Dispatched</button>
+                                    <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
+                                        <p className="text-xs font-black text-teal-200 uppercase tracking-widest mb-1">Total Orders</p>
+                                        <p className="text-xl font-black tracking-tight">{orders.length}</p>
                                     </div>
                                 </div>
-                            ))}
-                            {orders.length === 0 && (
-                                <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>
                             )}
+
+                            <div className="grid grid-cols-2 gap-8">
+                                {orders.map(order => (
+                                    <div key={order.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
+                                        <div className="flex justify-between mb-4">
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-lg">Rx Order #{order.id}</h3>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{order.patient_name} • {order.patient_phone}</p>
+                                            </div>
+                                            <span className="text-xs font-bold uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">{order.status}</span>
+                                        </div>
+                                        <div className="h-28 bg-slate-50 rounded-2xl p-4 mb-6 text-xs font-mono text-slate-600 overflow-y-auto border border-slate-100/60 shadow-inner">
+                                            {order.extracted_data || "Reading prescription..."}
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button onClick={() => handleStatus('prescription', order.id, 'ready')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30">Mark Ready</button>
+                                            <button onClick={() => handleStatus('prescription', order.id, 'delivered')} className="flex-1 bg-blue-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">Dispatched</button>
+                                        </div>
+                                    </div>
+                                ))}
+                                {orders.length === 0 && (
+                                    <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>
+                                )}
+                            </div>
                         </Motion.div>
                     )}
 

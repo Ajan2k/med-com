@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { adminAPI } from '../services/adminApi';
-import { ShieldCheck, Lock, ChevronRight } from 'lucide-react';
+import { ShieldCheck, Lock, ChevronRight, Activity, Pill, User, ArrowLeft } from 'lucide-react';
 import { motion as Motion } from 'framer-motion';
 
-const AdminLogin = ({ onLogin }) => {
+const AdminLogin = ({ portal, onLogin, onBack }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,6 +19,7 @@ const AdminLogin = ({ onLogin }) => {
         localStorage.setItem('admin_token', data.access_token);
         localStorage.setItem('admin_role', data.role);
         localStorage.setItem('admin_name', data.user_name);
+        localStorage.setItem('admin_id', data.id); // Add user ID for filtering
         onLogin();
       } else {
         alert("Access Denied: Not authorized staff.");
@@ -30,18 +31,32 @@ const AdminLogin = ({ onLogin }) => {
     setLoading(false);
   };
 
+  const getUIConfig = () => {
+    switch (portal) {
+      case 'doctor': return { title: "Doctor Portal", subtitle: "Manage your appointments & consults", icon: <User size={32} />, color: "bg-indigo-600" };
+      case 'lab': return { title: "Lab Portal", subtitle: "Process laboratory reports", icon: <Activity size={32} />, color: "bg-purple-600" };
+      case 'pharmacist': return { title: "Pharmacy Portal", subtitle: "Fulfill orders & manage inventory", icon: <Pill size={32} />, color: "bg-emerald-600" };
+      default: return { title: "MediCare Admin", subtitle: "Authorized Personnel Only", icon: <ShieldCheck size={32} />, color: "bg-blue-600" };
+    }
+  };
+  const ui = getUIConfig();
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
       <Motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+        className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col relative"
       >
-        <div className="bg-blue-600 p-8 text-center">
-          <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 text-white">
-            <ShieldCheck size={32} />
+        <button onClick={onBack} className="absolute top-4 left-4 w-8 h-8 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10">
+          <ArrowLeft size={16} />
+        </button>
+
+        <div className={`${ui.color} p-8 text-center pt-12`}>
+          <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-inner">
+            {ui.icon}
           </div>
-          <h2 className="text-2xl font-bold text-white">MediCare Admin</h2>
-          <p className="text-blue-100 text-sm mt-1">Authorized Personnel Only</p>
+          <h2 className="text-2xl font-bold text-white">{ui.title}</h2>
+          <p className="text-white/80 text-sm mt-1">{ui.subtitle}</p>
         </div>
 
         <div className="p-8">

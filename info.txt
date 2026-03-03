@@ -3,7 +3,6 @@ source venv/Scripts/activate
 uvicorn backend.app:app --reload --port 8000
 
 terminal 2: 
-
 cd frontend-user
 npm run dev
  
@@ -11,10 +10,8 @@ terminal 3:
 cd frontend-admin
 npm run dev
 
-admin-logins:
-
-sarah@hospital.com / doc123
-admin@hospital.com / admin123
-lab@hospital.com / staff123
-pharma@hospital.com / staff123
-adhi@hospital.com / admin123
+--- TEST CREDENTIALS ---
+Super Admin Portal: adhi@hospital.com / admin123
+Doctor Portal: doc.cardiology@medicare.com / doctor123
+Lab Portal: lab@medicare.com / lab123
+Pharmacy Portal: pharmacy@medicare.com / 12345
