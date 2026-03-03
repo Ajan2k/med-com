@@ -12,6 +12,25 @@ npm run dev
 
 --- TEST CREDENTIALS ---
 Super Admin Portal: adhi@hospital.com / admin123
-Doctor Portal: doc.cardiology@medicare.com / doctor123
+
+Doctor Portal: 
+- Dr. James Bond: bond@hospital.com / doctor123
+- Dr. Gregory House: house@hospital.com / doctor123
+- Dr. Stephen Strange: strange@hospital.com / doctor123
+- Dr. Meredith Grey: grey@hospital.com / doctor123
+- Dr. Shaun Murphy: murphy@hospital.com / doctor123
+- Dr. Eric Foreman: foreman@hospital.com / doctor123
+- Dr. Sarah: sarah@hospital.com / doctor123
+- Dr. Sarah Jenkins: s.jenkins@medicare.com / doctor123
+- Dr. Mark Ruffin: m.ruffin@medicare.com / doctor123
+- Dr. Emily Chen: e.chen@medicare.com / doctor123
+- Dr. Robert Lang: r.lang@medicare.com / doctor123
+- Dr. Cardio: doc.cardiology@medicare.com / doctor123
+- Dr. Neuro: doc.neurology@medicare.com / doctor123
+- Dr. Ortho: doc.orthopedics@medicare.com / doctor123
+- Dr. General: doc.general@medicare.com / doctor123
+- Dr. Gastro: doc.gastroenterology@medicare.com / doctor123
+- Dr. Peds: doc.pediatrics@medicare.com / doctor123
+- Dr. Derm: doc.dermatology@medicare.com / doctor123
 Lab Portal: lab@medicare.com / lab123
 Pharmacy Portal: pharmacy@medicare.com / 12345

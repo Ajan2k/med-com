@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { adminAPI } from '../services/adminApi';
 import io from 'socket.io-client';
-import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, CheckCircle2, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus, Shield, ArrowLeft } from 'lucide-react';
+import {
+    Activity, AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, BarChart as BarChartIcon, Bell, Briefcase, Calendar, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock, CreditCard, FileText, Info, LayoutDashboard, List, LogOut, MessageSquare, MoreHorizontal, Package, Pill, Plus, Printer, Receipt, RefreshCw, Search, Shield, TestTube, Trash2, TrendingUp, Truck, User, Users, X
+} from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import AppointmentsCalendar from '../components/AppointmentsCalendar';
@@ -35,14 +37,12 @@ const revenueData = [
     { name: 'Nov', revenue: 5200, patients: 320 },
     { name: 'Dec', revenue: 4800, patients: 280 },
     { name: 'Jan', revenue: 6100, patients: 390 },
-    { name: 'Feb', revenue: 7500, patients: 450 },
-];
+    { name: 'Feb', revenue: 7500, patients: 450 },];
 
 const departmentData = [
     { name: 'Consultations', value: 45 },
     { name: 'Lab Tests', value: 25 },
-    { name: 'Pharmacy', value: 30 },
-];
+    { name: 'Pharmacy', value: 30 },];
 const COLORS = ['#3b82f6', '#8b5cf6', '#10b981'];
 
 const medicineSalesData = [
@@ -50,17 +50,15 @@ const medicineSalesData = [
     { name: 'Amoxicillin', sales: 300 },
     { name: 'Ibuprofen', sales: 300 },
     { name: 'Vitamin C', sales: 200 },
-    { name: 'Cough Syrup', sales: 278 },
-];
+    { name: 'Cough Syrup', sales: 278 },];
 
 // --- MOCK BILLING DATA ---
 const mockBillingData = [
     { id: 'INV-2026-001', patientName: 'John Doe', patientId: '1024', date: 'Oct 24, 2026', type: 'Consultation + Lab', amount: 1250, status: 'Paid', items: [{ desc: 'General Consultation', amount: 500 }, { desc: 'Complete Blood Count', amount: 750 }] },
     { id: 'INV-2026-002', patientName: 'Sarah Smith', patientId: '1089', date: 'Oct 24, 2026', type: 'Pharmacy', amount: 480, status: 'Completed', items: [{ desc: 'Amoxicillin 500mg', amount: 300 }, { desc: 'Paracetamol', amount: 180 }] },
     { id: 'INV-2026-003', patientName: 'Michael Chen', patientId: '1102', date: 'Oct 23, 2026', type: 'Consultation', amount: 800, status: 'Pending', items: [{ desc: 'Cardiology Specialist Consult', amount: 800 }] },
-    { id: 'INV-2026-004', patientName: 'Emma Watson', patientId: '1145', date: 'Oct 23, 2026', type: 'Lab Test', amount: 2100, status: 'Paid', items: [{ desc: 'MRI Scan - Knee', amount: 2100 }] },
-    { id: 'INV-2026-005', patientName: 'David Lee', patientId: '1167', date: 'Oct 22, 2026', type: 'Pharmacy', amount: 150, status: 'Overdue', items: [{ desc: 'Cough Syrup', amount: 150 }] },
-];
+    { id: 'INV-2026-004', patientName: 'Emma Watson', patientId: '1145', date: 'Oct 23, 2026', type: 'Lab Test', amount: 2100, status: 'Paid', items: [{ desc: 'MRI Scan-Knee', amount: 2100 }] },
+    { id: 'INV-2026-005', patientName: 'David Lee', patientId: '1167', date: 'Oct 22, 2026', type: 'Pharmacy', amount: 150, status: 'Overdue', items: [{ desc: 'Cough Syrup', amount: 150 }] },];
 
 // Ensure backend URL is correct
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -71,7 +69,7 @@ const Dashboard = ({ onLogout, onBack }) => {
     const adminRole = rawRole.toLowerCase();
     const [activeTab, setActiveTab] = useState(() => {
         if (adminRole === 'doctor') return 'doctor_dashboard';
-        if (adminRole === 'lab_technician') return 'lab';
+        if (adminRole === 'lab') return 'lab_dashboard';
         if (adminRole === 'pharmacist') return 'pharmacy';
         return 'overview';
     });
@@ -103,6 +101,8 @@ const Dashboard = ({ onLogout, onBack }) => {
     const [newUserForm, setNewUserForm] = useState({ full_name: '', email: '', password: '', role: 'doctor', department: '', phone: '' });
     const [activeRoleTab, setActiveRoleTab] = useState('all'); // NEW: For filtering users by role inline
     const [showProfileMenu, setShowProfileMenu] = useState(false); // NEW: Dropdown menu for profile
+    const [scheduleTab, setScheduleTab] = useState('today'); // NEW: For doctor dashboard tabs
+    const [searchQuery, setSearchQuery] = useState(''); // NEW: For patient search in doctor dashboard
 
     const adminName = localStorage.getItem('admin_name') || 'Staff';
     const adminId = localStorage.getItem('admin_id');
@@ -121,13 +121,36 @@ const Dashboard = ({ onLogout, onBack }) => {
             const docData = Array.isArray(docRes?.data) ? docRes.data : [];
 
             // Filter appointments if the user is a specific doctor
-            let filteredAppts = apptData;
+            let filteredAppts = apptData.filter(a => a.patient_name !== 'Main Admin'); // Filter out mock admin data globally
             if (adminRole === 'doctor' && adminId) {
                 // If they are a doctor, only show their appointments OR generic lab tests
-                filteredAppts = apptData.filter(a => String(a?.doctor_id) === String(adminId) || a?.type === 'lab_test');
+                filteredAppts = filteredAppts.filter(a => String(a?.doctor_id) === String(adminId) || a?.type === 'lab_test');
             }
 
-            setAppointments(filteredAppts);
+            // --- DUMMY DATA INJECTION (If Empty) ---
+            if ((filteredAppts || []).length === 0 && adminRole === 'doctor') {
+                const now = new Date();
+                const dummyAppts = [
+                    { id: 1001, patient_name: 'Rahul Sharma', patient_phone: '+91 98765 43210', appointment_time: now.toISOString(), status: 'confirmed', type: 'consultation' },
+                    { id: 1002, patient_name: 'Priya Verma', patient_phone: '+91 87654 32109', appointment_time: new Date(now.getTime() + 3600000).toISOString(), status: 'pending', type: 'consultation' },
+                    { id: 1003, patient_name: 'Amit Patel', patient_phone: '+91 76543 21098', appointment_time: new Date(now.getTime() + 7200000).toISOString(), status: 'in_progress', type: 'consultation' },
+                    { id: 1004, patient_name: 'Sneha Gupta', patient_phone: '+91 99887 76655', appointment_time: new Date(now.getTime() + 86400000).toISOString(), status: 'confirmed', type: 'consultation' }, // Tomorrow
+                    { id: 1005, patient_name: 'Vikram Singh', patient_phone: '+91 88776 65544', appointment_time: new Date(now.getTime() + 172800000).toISOString(), status: 'pending', type: 'consultation' }, // Day after
+                    { id: 1006, patient_name: 'Anjali Rae', patient_phone: '+91 77665 54433', appointment_time: new Date(now.getTime() - 86400000).toISOString(), status: 'completed', type: 'consultation' }, // Yesterday
+                    { id: 1007, patient_name: 'Raj Malhotra', patient_phone: '+91 66554 43322', appointment_time: new Date(now.getTime() - 172800000).toISOString(), status: 'completed', type: 'consultation' } // Day before
+                ];
+                setAppointments(dummyAppts);
+            } else if ((filteredAppts || []).filter(a => a.type === 'lab_test').length === 0 && adminRole === 'lab') {
+                const now = new Date();
+                const dummyLabTests = [
+                    { id: 1005, patient_name: 'Alice Smith', patient_age: 25, type: 'lab_test', lab_test_name: 'Complete Blood Count (CBC)', status: 'new', payment_status: 'pending', appointment_time: now.toISOString() },
+                    { id: 1006, patient_name: 'John Doe', patient_age: 25, type: 'lab_test', lab_test_name: 'Lipid Profile', status: 'processing', payment_status: 'pending', appointment_time: new Date(now.getTime() - 3600000).toISOString() },
+                    { id: 1007, patient_name: 'Sarah Miller', patient_age: 25, type: 'lab_test', lab_test_name: 'Diabetes Screen (HbA1c)', status: 'ready', payment_status: 'pending', appointment_time: new Date(now.getTime() - 7200000).toISOString() }
+                ];
+                setAppointments(dummyLabTests);
+            } else {
+                setAppointments(filteredAppts);
+            }
             setOrders(rxData);
             setInventory(invData);
             setAllDoctors(docData);
@@ -148,6 +171,9 @@ const Dashboard = ({ onLogout, onBack }) => {
                 inventory: (invData || []).length
             });
 
+            setOrders(rxData);
+            setInventory(invData);
+            setAllDoctors(docData);
             // Hit Health Check for Diagnostic
             try {
                 const health = await axios.get(API_URL + '/');
@@ -304,11 +330,12 @@ const Dashboard = ({ onLogout, onBack }) => {
 
                         {/* FULL ACCESS FOR ALL ADMIN LOGINS */}
                         <SidebarItem id="overview" Icon={Activity} label="Overview" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="doctor_dashboard" Icon={Activity} label="Doctor Dashboard" count={0} visible={adminRole === 'doctor'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="doctor_dashboard" Icon={LayoutDashboard} label="Dashboard" count={0} visible={adminRole === 'doctor'} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="lab_dashboard" Icon={LayoutDashboard} label="Dashboard" count={0} visible={adminRole === 'lab' || adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
 
                         <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={myPerms.manage_appointments} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={myPerms.manage_lab} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="lab" Icon={List} label="Lab Queue" count={stats.lab} visible={myPerms.manage_lab} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={myPerms.manage_pharmacy} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={myPerms.manage_inventory} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -395,6 +422,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                         {activeTab === 'users' && <><div className="p-2 bg-indigo-50 rounded-xl"><Users className="text-indigo-600" size={24} /></div> User Management</>}
                         {activeTab === 'roles' && <><div className="p-2 bg-slate-100 rounded-xl"><Shield className="text-slate-600" size={24} /></div> Roles & Permissions</>}
                         {activeTab === 'overview' && <><div className="p-2 bg-slate-100 rounded-xl"><LayoutDashboard className="text-slate-600" size={24} /></div> Overview</>}
+                        {activeTab === 'doctor_dashboard' && <><div className="p-2 bg-indigo-50 rounded-xl"><Users className="text-indigo-600" size={24} /></div> Doctor Dashboard</>}
                     </h2>
                     <div className="flex items-center gap-4 relative">
                         <div className="text-right hidden sm:block">
@@ -430,76 +458,262 @@ const Dashboard = ({ onLogout, onBack }) => {
                 </div>
 
                 {/* DASHBOARD CONTENT */}
-                <div className="flex-1 overflow-y-auto p-10 relative z-0 scroll-smooth">
+                <div className={`flex-1 overflow-y-auto ${activeTab === 'doctor_dashboard' ? 'p-0 bg-slate-50/50' : 'p-10'} relative z-0 scroll-smooth`}>
 
                     {/* DOCTOR DASHBOARD TAB */}
                     {activeTab === 'doctor_dashboard' && (
-                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
-                            {/* WELCOME HERO BANNER */}
-                            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group">
-                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
-                                <div className="relative z-10">
-                                    <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Dr. {adminName}! 🩺</h2>
-                                    <p className="text-blue-100/90 font-medium text-lg max-w-xl">Have a great day ahead! Here is your daily schedule and pending tasks for today.</p>
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="flex h-full min-h-[calc(100vh-5rem)]">
+
+                            {/* MAIN COLUMN (LEFT) */}
+                            <div className="flex-1 p-8 space-y-8 overflow-y-auto custom-scrollbar border-r border-slate-200/60 bg-white/30 backdrop-blur-sm">
+
+                                {/* HERO SECTION (NEW Premium Style) */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        <span>Dashboard</span>
+                                        <ChevronRight size={12} />
+                                        <span className="text-blue-500">Doctor Overview</span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <div>
+                                            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Welcome back, {adminName.toLowerCase().startsWith('dr.') ? adminName : `Dr.${adminName.split(' ')[0]} `}! 👋</h1>
+                                            <p className="text-slate-500 font-medium">Here is your overview for today:</p>
+                                        </div>
+                                        <div className="flex items-center gap-4 bg-white/80 p-1.5 rounded-2xl border border-white shadow-sm">
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold ring-1 ring-blue-500/10">
+                                                <Calendar size={14} />
+                                                <span>Today is {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                                            </div>
+                                            <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
+                                                <ChevronLeft size={20} />
+                                            </button>
+                                            <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
+                                                <ChevronRight size={20} />
+                                            </button>
+                                            <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors bg-white rounded-lg shadow-sm">
+                                                <Calendar size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
-                                    <p className="text-xs font-black text-indigo-200 uppercase tracking-widest mb-1">Today's Date</p>
-                                    <p className="text-xl font-black tracking-tight">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+
+                                {/* HORIZONTAL STATS GRID */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* TODAY'S APPOINTMENTS */}
+                                    <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white flex items-center justify-between group hover:-translate-y-1 transition-all duration-300">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 bg-blue-500/10 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                                                <Calendar size={32} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-500 mb-0.5">Today's Appointments</p>
+                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">2k people</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-4xl font-black text-slate-800">{appointments.filter(a => new Date(a.appointment_time).toDateString() === new Date().toDateString()).length || 0}</div>
+                                    </div>
+
+                                    {/* LAB RESULTS */}
+                                    <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white flex items-center justify-between group hover:-translate-y-1 transition-all duration-300">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                                                <TestTube size={32} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-500 mb-0.5">Lab Results</p>
+                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Awaiting Review</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-4xl font-black text-slate-800">{appointments.filter(a => a.type === 'lab_test' && a.status === 'processing').length || 0}</div>
+                                    </div>
+
+                                    {/* PRESCRIPTIONS */}
+                                    <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] shadow-xl shadow-slate-200/40 border border-white flex items-center justify-between group hover:-translate-y-1 transition-all duration-300">
+                                        <div className="flex items-center gap-5">
+                                            <div className="w-16 h-16 bg-amber-500/10 text-amber-600 rounded-2xl flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+                                                <Pill size={32} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-500 mb-0.5">Prescriptions</p>
+                                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Issued Today</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-4xl font-black text-slate-800">8</div>
+                                    </div>
+                                </div>
+
+                                {/* TODAY'S SCHEDULE SECTION */}
+                                <div className="bg-white/60 backdrop-blur-md rounded-[2.5rem] border border-white shadow-2xl shadow-slate-200/40 p-8 space-y-8">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                                        <div>
+                                            <h3 className="text-2xl font-black text-slate-800 tracking-tight mb-1">Today's Schedule</h3>
+                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Active Consultations</p>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                                            {/* SEARCH BAR */}
+                                            <div className="relative w-full sm:w-64 group">
+                                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search patients..."
+                                                    className="w-full bg-slate-50/50 border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all placeholder:text-slate-400"
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* TABS (Schedule filter) */}
+                                    <div className="flex gap-2 p-1.5 bg-slate-100/50 rounded-2xl w-max">
+                                        {[
+                                            { id: 'today', label: "Today's Schedule" },
+                                            { id: 'upcoming', label: "Upcoming" },
+                                            { id: 'past', label: "Past Visits" }].map(tab => (
+                                                <button
+                                                    key={tab.id}
+                                                    onClick={() => setScheduleTab(tab.id)}
+                                                    className={`px-6 py-2.5 rounded-xl text-sm font-black transition-all ${scheduleTab === tab.id ? 'bg-white text-blue-600 shadow-xl shadow-slate-200/50 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    {tab.label}
+                                                </button>
+                                            ))}
+                                    </div>
+
+                                    {/* TABLE HEADER */}
+                                    <div className="grid grid-cols-[100px_1fr_120px_1fr] px-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-4">
+                                        <div>Time</div>
+                                        <div>Patient Name</div>
+                                        <div>Status</div>
+                                        <div className="text-right pr-4">Actions</div>
+                                    </div>
+
+                                    {/* SCHEDULE LIST */}
+                                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {appointments
+                                            .filter(a => a.patient_name !== 'Main Admin') // Filter out mock admin data
+                                            .filter(a => {
+                                                const apptDate = new Date(a.appointment_time);
+                                                const today = new Date();
+                                                if (scheduleTab === 'today') return apptDate.toDateString() === today.toDateString();
+                                                if (scheduleTab === 'upcoming') {
+                                                    // Set time to 0 to compare dates only, or keep it to include future times today
+                                                    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+                                                    return apptDate > new Date(); // Truly in the future
+                                                }
+                                                if (scheduleTab === 'past') return apptDate < new Date().setHours(0, 0, 0, 0);
+                                                return true;
+                                            })
+                                            .filter(a => a.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                                            .map((appt, idx) => {
+                                                const time = new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                                return (
+                                                    <div key={idx} className="grid grid-cols-[100px_1fr_120px_1fr] items-center px-6 py-5 bg-white rounded-3xl border border-slate-100/60 hover:shadow-xl hover:shadow-slate-100/80 transition-all group">
+                                                        <div className="text-sm font-black text-slate-800">{time}</div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-sm font-black text-slate-800">{appt.patient_name}</p>
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase">#10{idx + 7}</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 font-bold truncate mt-0.5">{appt.patient_phone || 'No Phone Number'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${appt.status === 'confirmed' ? 'bg-blue-50 text-blue-600' :
+                                                                appt.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                                                } `}>
+                                                                {appt.status}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-end gap-2">
+                                                            {appt.status !== 'completed' ? (
+                                                                <button onClick={() => setSelectedAppt(appt)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black px-6 py-2.5 rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95">
+                                                                    Start Consultation
+                                                                </button>
+                                                            ) : (
+                                                                <button onClick={() => setSelectedAppt(appt)} className="text-slate-400 hover:text-slate-600 text-[11px] font-black px-4 py-2.5 flex items-center gap-2 transition-all">
+                                                                    View Details <ChevronRight size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        {appointments.length === 0 && (
+                                            <div className="py-20 text-center space-y-4">
+                                                <div className="w-16 h-16 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mx-auto">
+                                                    <Calendar size={32} />
+                                                </div>
+                                                <p className="text-slate-400 font-bold tracking-tight">No appointments found for this filter.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button className="w-full py-4 text-[10px] font-black text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+                                        <Plus size={14} /> View All Records
+                                    </button>
                                 </div>
                             </div>
 
-                            {/* STATS GRID */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
-                                    <div className="relative z-10 flex justify-between items-center w-full">
-                                        <div>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Today's Appts</p>
-                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => new Date(a.appointment_time).toDateString() === new Date().toDateString()).length || 0}</h3>
-                                        </div>
-                                        <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                                            <Calendar size={26} />
-                                        </div>
+                            {/* RIGHT SIDEBAR */}
+                            <div className="w-[380px] bg-slate-50/10 p-8 space-y-10 overflow-y-auto custom-scrollbar border-l border-white shadow-[-20px_0_40px_rgba(0,0,0,0.02)]">
+
+                                {/* PATIENT FOLLOW UPS */}
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-black text-slate-800 tracking-tight">Patient Follow-Ups</h3>
+                                        <button className="text-slate-400 hover:text-blue-500 transition-colors">
+                                            <MoreHorizontal size={20} />
+                                        </button>
                                     </div>
-                                    <p className="text-xs text-blue-500 font-bold mt-4 cursor-pointer">View Schedule &rarr;</p>
+                                    <div className="space-y-4">
+                                        {[
+                                            { id: 1005, icon: <ArrowUpRight />, color: "bg-emerald-50 text-emerald-600", title: "Review lab results for Alok Sharma", sub: "#1005", time: "15 mins ago", patient_name: "Alok Sharma" },
+                                            { id: 1010, icon: <MessageSquare />, color: "bg-blue-50 text-blue-600", title: "Prescribe medication for Emma Wilson", sub: "#1010", time: "30 mins ago", patient_name: "Emma Wilson" },
+                                            { id: 1013, icon: <Clock />, color: "bg-indigo-50 text-indigo-600", title: "Call back Daniel Jones for follow-up", sub: "#1013", time: "1 hr ago", patient_name: "Daniel Jones" }].map((item, i) => (
+                                                <div key={i} onClick={() => setSelectedAppt({ id: item.id, patient_name: item.patient_name, status: 'pending', type: 'consultation', patient_phone: '+91 99999 88888' })} className="flex gap-4 group cursor-pointer hover:bg-white p-2 rounded-2xl transition-all">
+                                                    <div className={`w-12 h-12 ${item.color} rounded-2xl flex items-center justify-center shadow-lg shadow-current/10 group-hover:scale-110 transition-transform`}>
+                                                        {item.icon}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[13px] font-black text-slate-800 truncate leading-snug">{item.title}</p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[10px] text-slate-400 font-bold">{item.sub}</span>
+                                                            <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
+                                                            <span className="text-[10px] text-slate-400 font-bold">{item.time}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                    <button className="w-full py-3.5 bg-white border border-slate-100 rounded-2xl text-[11px] font-black text-slate-400 hover:text-blue-500 hover:border-blue-500/20 shadow-sm transition-all flex items-center justify-center gap-2">
+                                        View All <ChevronRight size={14} />
+                                    </button>
                                 </div>
 
-                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
-                                    <div className="relative z-10 flex justify-between items-center w-full">
-                                        <div>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pending Consults</p>
-                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.status === 'pending' || a.status === 'rescheduled').length || 0}</h3>
-                                        </div>
-                                        <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30">
-                                            <Users size={26} />
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-amber-500 font-bold mt-4 cursor-pointer">Review Patients &rarr;</p>
-                                </div>
-
-                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('lab')}>
-                                    <div className="relative z-10 flex justify-between items-center w-full">
-                                        <div>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Lab Results</p>
-                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.type === 'lab_test' && a.status === 'completed').length || 0}</h3>
-                                        </div>
-                                        <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30">
-                                            <Activity size={26} />
+                                {/* NOTIFICATIONS SECTION */}
+                                <div className="space-y-6 pt-4 border-t border-slate-200/40">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-black text-slate-800 tracking-tight">Notifications</h3>
+                                        <div className="flex gap-1.5">
+                                            <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-bounce"></div>
+                                            <div className="w-1.5 h-1.5 bg-rose-500/60 rounded-full animate-bounce delay-100"></div>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-purple-500 font-bold mt-4 cursor-pointer">Review Reports &rarr;</p>
-                                </div>
-
-                                <div className="bg-white p-7 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden" onClick={() => setActiveTab('appointments')}>
-                                    <div className="relative z-10 flex justify-between items-center w-full">
-                                        <div>
-                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Completed</p>
-                                            <h3 className="text-4xl font-black text-slate-800">{appointments.filter(a => a.status === 'completed' && a.type === 'consultation').length || 0}</h3>
-                                        </div>
-                                        <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                                            <CheckCircle2 size={26} />
-                                        </div>
+                                    <div className="space-y-4">
+                                        {[
+                                            { icon: <Activity size={16} />, color: "bg-purple-100 text-purple-600", text: "New lab result available for Vikram Lal. Go to Lab Results for review.", time: "15 mins ago", tab: 'lab' },
+                                            { icon: <Clock size={16} />, color: "bg-amber-100 text-amber-600", text: "John Doe's appointment is waiting (#1014) in Schedule.", time: "30 mins ago", tab: 'doctor_dashboard' },
+                                            { icon: <CheckCircle2 size={16} />, color: "bg-blue-100 text-blue-600", text: "Rahul Mehta appointment completed. Update patient record.", time: "1 hr ago", tab: 'doctor_dashboard' }].map((note, i) => (
+                                                <div key={i} onClick={() => setActiveTab(note.tab)} className="flex gap-4 p-4 hover:bg-white rounded-3xl transition-colors group cursor-pointer">
+                                                    <div className={`w-10 h-10 ${note.color} rounded-xl shrink-0 flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                                        {note.icon}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-bold text-slate-700 leading-relaxed">{note.text}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold">{note.time}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
                                     </div>
-                                    <p className="text-xs text-emerald-500 font-bold mt-4 cursor-pointer">Consults Finished &rarr;</p>
                                 </div>
                             </div>
                         </Motion.div>
@@ -622,7 +836,6 @@ const Dashboard = ({ onLogout, onBack }) => {
                             </div>
                         </Motion.div>
                     )}
-
                     {/* ANALYTICS TAB */}
                     {activeTab === 'analytics' && (
                         <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="space-y-8 pb-10">
@@ -633,16 +846,15 @@ const Dashboard = ({ onLogout, onBack }) => {
                                     { label: 'Total Revenue', value: '₹32,100', trend: '+14%', color: 'blue' },
                                     { label: 'Patient Footfall', value: '1,980', trend: '+8%', color: 'purple' },
                                     { label: 'Lab Tests Done', value: '430', trend: '+22%', color: 'emerald' },
-                                    { label: 'Pharmacy Sales', value: '890', trend: '-3%', color: 'rose' }
-                                ].map((kpi, i) => (
-                                    <div key={i} className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:-translate-y-1 transition-transform cursor-default">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
-                                            <span className={`text-[10px] font-black px-2 py-1 rounded-full ${kpi.trend.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{kpi.trend}</span>
+                                    { label: 'Pharmacy Sales', value: '890', trend: '-3%', color: 'rose' }].map((kpi, i) => (
+                                        <div key={i} className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:-translate-y-1 transition-transform cursor-default">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                                                <span className={`text-[10px] font-black px-2 py-1 rounded-full ${kpi.trend.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} `}>{kpi.trend}</span>
+                                            </div>
+                                            <h3 className="text-3xl font-black text-slate-800 tracking-tight">{kpi.value}</h3>
                                         </div>
-                                        <h3 className="text-3xl font-black text-slate-800 tracking-tight">{kpi.value}</h3>
-                                    </div>
-                                ))}
+                                    ))}
                             </div>
 
                             {/* MAIN CHARTS AREA */}
@@ -699,7 +911,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                                                     stroke="none"
                                                 >
                                                     {departmentData.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                        <Cell key={`cell - ${index} `} fill={COLORS[index % COLORS.length]} />
                                                     ))}
                                                 </Pie>
                                                 <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
@@ -741,8 +953,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                             </div>
                         </Motion.div>
                     )}
-
-                    {/* OVERVIEW - RECENT ACTIVITY SUMMARY */}
+                    {/* OVERVIEW-RECENT ACTIVITY SUMMARY */}
                     {activeTab === 'overview' && (
                         <div className="space-y-8">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -877,7 +1088,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                                                     <td className="p-4">
                                                         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-tight ${item.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' :
                                                             item.status === 'Pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
-                                                            }`}>
+                                                            } `}>
                                                             {item.status}
                                                         </span>
                                                     </td>
@@ -965,7 +1176,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                                                     <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded w-fit ${txn.status === 'Paid' || txn.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' :
                                                         txn.status === 'Pending' ? 'bg-amber-50 text-amber-600' :
                                                             'bg-red-50 text-red-600'
-                                                        }`}>
+                                                        } `}>
                                                         {txn.status}
                                                     </span>
                                                 </td>
@@ -976,7 +1187,6 @@ const Dashboard = ({ onLogout, onBack }) => {
                             </div>
                         </Motion.div>
                     )}
-
                     {/* DOCTOR VIEW: WEEKLY CALENDAR SCHEDULE */}
                     {activeTab === 'appointments' && (
                         <AppointmentsCalendar
@@ -986,108 +1196,304 @@ const Dashboard = ({ onLogout, onBack }) => {
                             onRefresh={fetchData}
                         />
                     )}
-
-                    {/* LAB VIEW: TEST REQUESTS */}
-                    {activeTab === 'lab' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
-
-                            {/* LAB WELCOME BANNER */}
-                            {adminRole === 'lab_technician' && (
-                                <div className="bg-gradient-to-r from-purple-700 to-fuchsia-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group mb-4">
-                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
-                                    <div className="relative z-10">
-                                        <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Lab Staff {adminName}! 🔬</h2>
-                                        <p className="text-purple-100/90 font-medium text-lg max-w-xl">Manage your queue. You have {appointments.filter(a => a.type === 'lab_test' && a.status === 'pending').length} new samples to collect today.</p>
+                    {/* LAB DASHBOARD (OVERVIEW) */}
+                    {activeTab === 'lab_dashboard' && (
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="flex h-full min-h-[calc(100vh-5rem)]">
+                            {/* MAIN COLUMN (LEFT) */}
+                            <div className="flex-1 p-8 space-y-8 overflow-y-auto custom-scrollbar border-r border-slate-200/60 bg-white/30 backdrop-blur-sm">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        <span>Workspace</span>
+                                        <ChevronRight size={12} />
+                                        <span className="text-blue-500">Lab Overview</span>
                                     </div>
-                                    <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
-                                        <p className="text-xs font-black text-fuchsia-200 uppercase tracking-widest mb-1">Today's Date</p>
-                                        <p className="text-xl font-black tracking-tight">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                                        Welcome back, Lab! 👋
+                                    </h2>
+                                    <p className="text-slate-500 font-medium">Here's a quick overview of the lab activity that requires your attention.</p>
                                 </div>
-                            )}
 
-                            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">Lab Queue</h3>
-                                    <p className="text-sm text-slate-500">Manage and track pending laboratory tests.</p>
-                                </div>
-                                <button onClick={() => setShowLabBookingModal(true)} className="bg-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2">
-                                    <Plus size={16} /> New Lab Request
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-1 gap-6">
-                                {appointments.filter(a => a?.type === 'lab_test').map(test => {
-                                    const isHome = test?.doctor_name?.includes("Home Collection");
-                                    return (
-                                        <div key={test.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex justify-between items-center group hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
-                                            <div className="flex gap-4 items-center">
-                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isHome ? 'bg-orange-100 text-orange-600' : 'bg-purple-100 text-purple-600'}`}>
-                                                    {isHome ? <Truck size={24} /> : <TestTube size={24} />}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-slate-800">Test #{test.id}</h3>
-                                                    <p className="text-sm text-slate-600 font-medium">{test.doctor_name || "Lab Test"}</p>
-                                                    <p className="text-xs text-slate-400 mt-1">{test.patient_name || `Patient #${test.patient_id}`} - {test.patient_phone || 'No Phone'} • Status: <span className="uppercase font-bold text-slate-600">{test.status}</span></p>
-                                                    {test.lab_result && (
-                                                        <div className="mt-2 p-2 bg-indigo-50/80 rounded-lg border border-indigo-100/50">
-                                                            <p className="text-[10px] text-slate-600 italic">Result: {test.lab_result}</p>
-                                                        </div>
-                                                    )}
+                                {/* KPI CARDS (Premium Style) */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {[
+                                        { label: "New Lab Requests", value: "1", sub: "30 ops", color: "from-blue-500 to-blue-600", icon: <TestTube size={24} />, sparkline: true },
+                                        { label: "Pending Results", value: "1", sub: "25+ items", color: "from-purple-500 to-indigo-600", icon: <Clock size={24} /> },
+                                        { label: "Completed Today", value: "1", sub: "Goal: 30", color: "from-emerald-500 to-teal-600", icon: <CheckCircle2 size={24} /> }
+                                    ].map((card, idx) => (
+                                        <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/30 group hover:scale-[1.02] transition-all duration-300 flex items-center gap-5">
+                                            <div className={`w-14 h-14 bg-gradient-to-br ${card.color} rounded-2xl flex items-center justify-center text-white shadow-lg group-hover:rotate-6 transition-transform`}>
+                                                {card.icon}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{card.label}</p>
+                                                <div className="flex items-baseline gap-2">
+                                                    <h4 className="text-2xl font-black text-slate-800 tracking-tighter">{card.value}</h4>
+                                                    <span className="text-[10px] font-bold text-slate-400">{card.sub}</span>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <button onClick={() => setSelectedAppt(test)} className="px-6 py-3 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-gradient-to-r hover:from-purple-600 hover:to-indigo-600 shadow-lg shadow-slate-200 transition-all duration-300 hover:shadow-purple-500/30">Manage Request</button>
+                                            {card.sparkline && (
+                                                <div className="w-16 h-8 text-blue-500/20">
+                                                    <svg viewBox="0 0 100 40" className="w-full h-full stroke-current fill-none stroke-[3]">
+                                                        <path d="M0,35 Q20,5 40,30 T80,10 T100,5" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    {/* SAMPLES SUMMARY CHART */}
+                                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/30">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-lg font-black text-slate-800 tracking-tight">Samples Summary</h3>
+                                            <button className="text-slate-400 hover:text-blue-500"><MoreHorizontal size={20} /></button>
+                                        </div>
+                                        <div className="h-[240px] relative flex items-center justify-center">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={[{ name: 'New', value: 1 }, { name: 'Processing', value: 1 }, { name: 'Ready', value: 1 }]} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value">
+                                                        <Cell fill="#3b82f6" />
+                                                        <Cell fill="#a855f7" />
+                                                        <Cell fill="#10b981" />
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                <span className="text-4xl font-black text-slate-800">3</span>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</span>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                                {appointments.filter(a => a.type === 'lab_test').length === 0 && (
-                                    <div className="p-16 text-center text-slate-400 font-medium">No pending lab tests.</div>
-                                )}
+                                    </div>
+
+                                    {/* TEST UPDATES */}
+                                    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/30">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-lg font-black text-slate-800 tracking-tight">Test Updates</h3>
+                                            <button className="text-slate-400 hover:text-blue-500"><MoreHorizontal size={20} /></button>
+                                        </div>
+                                        <div className="space-y-5">
+                                            {[
+                                                { patient: 'RAHUL MEHTA', id: '#1012', desc: 'Thyroid Function Test is awaiting review.', status: 'Reviewing', color: 'orange' },
+                                                { patient: 'JOHN DOE', id: '#1009', desc: 'Liver Function Test is awaiting review.', status: 'Reviewing', color: 'blue' },
+                                                { patient: 'SARAH WILLIAMS', id: '#1003', desc: 'Complete Blood Count Test is completed.', status: 'Completed', color: 'emerald' }
+                                            ].map((item, i) => (
+                                                <div key={i} className="flex gap-4 group cursor-pointer">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold bg-slate-50 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors`}>
+                                                        {item.patient[0]}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-slate-800 tracking-wide">{item.patient}</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">{item.id}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{item.desc}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Motion.div>
+                    )}
+
+                    {/* LAB VIEW: TEST QUEUE */}
+                    {activeTab === 'lab' && (
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="p-10 space-y-8">
+                            <div className="flex justify-between items-end">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                            <TestTube size={16} />
+                                        </div>
+                                        <span>Lab Test Queue</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">Welcome back, Lab! 👋</h2>
+                                        <p className="text-slate-500 font-medium">Here's a quick overview of the lab activity that requires your attention.</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white/50 backdrop-blur-md p-4 rounded-3xl border border-white/60 shadow-sm flex items-center gap-6">
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Date</p>
+                                        <p className="text-sm font-black text-slate-800">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center text-slate-400">
+                                        <Calendar size={18} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* QUEUE TABLE CONTAINER */}
+                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex items-center justify-between gap-8">
+                                    <div className="flex items-center gap-8">
+                                        <h3 className="text-xl font-black text-slate-800 tracking-tight">Lab Queue</h3>
+                                        <div className="flex bg-slate-50 p-1.5 rounded-2xl gap-1">
+                                            {['ALL REQUESTS', 'NEW REQUESTS', 'IN PROGRESS'].map(tab => (
+                                                <button key={tab} className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all ${tab === 'ALL REQUESTS' ? 'bg-white text-blue-600 shadow-md transform scale-105' : 'text-slate-400 hover:text-slate-600'}`}>{tab}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 max-w-sm relative">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input type="text" placeholder="Quick Search..." className="w-full bg-slate-50 border-none rounded-2xl py-3 pl-12 pr-4 text-xs font-bold focus:ring-2 focus:ring-blue-500/20 transition-all" />
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient & Age</th>
+                                                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Test Type</th>
+                                                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Payment</th>
+                                                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {appointments.filter(a => a.type === 'lab_test').map((test, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                                    <td className="px-10 py-6">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-black text-slate-800">{test.patient_name} <span className="text-slate-300 font-bold text-[11px]">({test.patient_age} Yrs)</span></span>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">ID: #{test.id}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-10 py-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                                                                <TestTube size={16} />
+                                                            </div>
+                                                            <span className="text-xs font-bold text-slate-700">{test.lab_test_name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-10 py-6 text-center">
+                                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${test.payment_status === 'pending' ? 'bg-rose-50 text-rose-500 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                            {test.payment_status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-10 py-6 text-center">
+                                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${test.status === 'new' ? 'bg-amber-50 text-amber-500 border border-amber-100' : test.status === 'processing' ? 'bg-blue-50 text-blue-500 border border-blue-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                            {test.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-10 py-6 text-right">
+                                                        <button onClick={() => setSelectedAppt(test)} className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 ${test.status === 'new' ? 'bg-blue-600 text-white shadow-blue-500/20 hover:bg-blue-700' : 'bg-white border border-slate-200 text-slate-800 hover:bg-slate-50'}`}>
+                                                            {test.status === 'new' ? 'Start Test' : 'Finalize'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </Motion.div>
                     )}
 
                     {/* PHARMACY VIEW */}
                     {activeTab === 'pharmacy' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-8">
 
-                            {/* PHARMACY WELCOME BANNER */}
-                            {adminRole === 'pharmacist' && (
-                                <div className="bg-gradient-to-r from-emerald-600 to-teal-800 rounded-[2rem] p-10 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group mb-4">
-                                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
-                                    <div className="relative z-10">
-                                        <h2 className="text-4xl font-black mb-3 tracking-tight">Welcome, Pharmacist {adminName}! 💊</h2>
-                                        <p className="text-emerald-100/90 font-medium text-lg max-w-xl">There are {orders.filter(o => o.status === 'processing' || o.status === 'preparing').length} orders waiting to be fulfilled today.</p>
+                            {/* PHARMACY HERO BANNER */}
+                            <div className="bg-gradient-to-r from-emerald-600 to-teal-800 rounded-[2.5rem] p-12 text-white shadow-2xl relative overflow-hidden flex justify-between items-center group">
+                                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none"></div>
+                                <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
+
+                                <div className="relative z-10 space-y-4">
+                                    <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-xs font-black uppercase tracking-widest">
+                                        <Pill size={14} /> Pharmacy Hub
                                     </div>
-                                    <div className="relative z-10 hidden lg:block text-right bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-3xl shadow-xl">
-                                        <p className="text-xs font-black text-teal-200 uppercase tracking-widest mb-1">Total Orders</p>
-                                        <p className="text-xl font-black tracking-tight">{orders.length}</p>
+                                    <h2 className="text-4xl font-black tracking-tight leading-tight">
+                                        Welcome, Pharmacist {adminName.split(' ')[0]}! 💊
+                                    </h2>
+                                    <p className="text-emerald-100/80 font-medium text-lg max-w-xl">
+                                        Fulfilling prescriptions and managing medical supplies with precision.
+                                        There are <span className="text-white font-black underline decoration-2 underline-offset-4">{orders.filter(o => o.status === 'processing' || o.status === 'pending').length} tasks</span> requiring your attention.
+                                    </p>
+                                </div>
+                                <div className="relative z-10 hidden xl:flex gap-4">
+                                    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-[2rem] shadow-xl text-center min-w-[120px]">
+                                        <p className="text-[10px] font-black text-teal-200 uppercase tracking-widest mb-1">Queue Size</p>
+                                        <p className="text-3xl font-black tracking-tight">{orders.length}</p>
+                                    </div>
+                                    <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-[2rem] shadow-xl text-center min-w-[120px]">
+                                        <p className="text-[10px] font-black text-teal-200 uppercase tracking-widest mb-1">In Process</p>
+                                        <p className="text-3xl font-black tracking-tight text-emerald-300">{orders.filter(o => o.status === 'processing' || o.status === 'preparing').length}</p>
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
-                            <div className="grid grid-cols-2 gap-8">
-                                {orders.map(order => (
-                                    <div key={order.id} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white flex flex-col justify-between hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/60 transition-all duration-300">
-                                        <div className="flex justify-between mb-4">
+                            {/* ORDERS GRID */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                                {orders.map((order, idx) => (
+                                    <Motion.div
+                                        key={order.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className="bg-white rounded-[2rem] shadow-2xl shadow-slate-200/40 border border-slate-100 p-8 flex flex-col justify-between hover:-translate-y-2 hover:shadow-blue-500/10 transition-all duration-300 relative group overflow-hidden"
+                                    >
+                                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                            <Pill size={80} className="rotate-12" />
+                                        </div>
+
+                                        <div className="flex justify-between items-start mb-6 relative z-10">
                                             <div>
-                                                <h3 className="font-bold text-slate-800 text-lg">Rx Order #{order.id}</h3>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{order.patient_name} • {order.patient_phone}</p>
+                                                <h3 className="font-black text-slate-800 text-xl tracking-tight mb-1">Order #{order.id}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs uppercase">
+                                                        {order.patient_name[0]}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide">{order.patient_name}</p>
+                                                </div>
                                             </div>
-                                            <span className="text-xs font-bold uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">{order.status}</span>
+                                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-colors ${order.status === 'ready' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                order.status === 'delivered' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                    'bg-amber-50 text-amber-500 border-amber-100'
+                                                }`}>
+                                                {order.status}
+                                            </span>
                                         </div>
-                                        <div className="h-28 bg-slate-50 rounded-2xl p-4 mb-6 text-xs font-mono text-slate-600 overflow-y-auto border border-slate-100/60 shadow-inner">
-                                            {order.extracted_data || "Reading prescription..."}
+
+                                        <div className="bg-slate-50 rounded-2xl p-6 mb-8 text-xs font-mono text-slate-600 overflow-y-auto border border-slate-100/60 shadow-inner group-hover:bg-slate-100/50 transition-colors">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                <FileText size={12} /> Prescription Details
+                                            </p>
+                                            <div className="whitespace-pre-wrap leading-relaxed">
+                                                {order.extracted_data || "No prescription data attached."}
+                                            </div>
                                         </div>
-                                        <div className="flex gap-3">
-                                            <button onClick={() => handleStatus('prescription', order.id, 'ready')} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30">Mark Ready</button>
-                                            <button onClick={() => handleStatus('prescription', order.id, 'delivered')} className="flex-1 bg-blue-500 text-white py-3 rounded-xl text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30">Dispatched</button>
+
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={() => handleStatus('prescription', order.id, 'ready')}
+                                                className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <Check size={14} /> Ready for Pickup
+                                            </button>
+                                            <button
+                                                onClick={() => handleStatus('prescription', order.id, 'delivered')}
+                                                className="flex-1 bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <Truck size={14} /> Dispatched
+                                            </button>
                                         </div>
-                                    </div>
+                                    </Motion.div>
                                 ))}
                                 {orders.length === 0 && (
-                                    <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No orders in queue.</div>
+                                    <div className="col-span-1 lg:col-span-2 py-24 text-center space-y-4">
+                                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-300">
+                                            <MoreHorizontal size={32} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Queue is Empty</h3>
+                                            <p className="text-slate-400 font-medium">No pharmacy orders are waiting for fulfillment.</p>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </Motion.div>
@@ -1095,193 +1501,313 @@ const Dashboard = ({ onLogout, onBack }) => {
 
                     {/* INVENTORY VIEW */}
                     {activeTab === 'inventory' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-white overflow-hidden">
-                            <div className="p-6 border-b border-slate-100/60 bg-slate-50/50 flex justify-between items-center">
-                                <h3 className="font-bold text-slate-800 text-lg">Product Inventory</h3>
-                                <span className="text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-1.5 rounded-full shadow-sm">{inventory.length} Items Listed</span>
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-8">
+
+                            {/* INVENTORY HEADER & KPIs */}
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-2">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        <Package size={14} />
+                                        <span>Logistics & Supplies</span>
+                                    </div>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">Product Inventory</h2>
+                                    <p className="text-slate-500 font-medium text-sm">Real-time stock monitoring and procurement management.</p>
+                                </div>
+                                <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                                    {[
+                                        { label: "Total Items", value: inventory.length, icon: <Package size={14} />, color: "bg-indigo-50 text-indigo-600" },
+                                        { label: "Low Stock", value: inventory.filter(i => i.stock < 20).length, icon: <AlertTriangle size={14} />, color: "bg-amber-50 text-amber-600" },
+                                        { label: "Expiring soon", value: inventory.filter(i => new Date(i.expiryDate) < new Date(Date.now() + 90 * 86400000)).length, icon: <Clock size={14} />, color: "bg-rose-50 text-rose-600" }
+                                    ].map((stat, idx) => (
+                                        <div key={idx} className="bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 min-w-[140px]">
+                                            <div className={`w-8 h-8 rounded-lg ${stat.color} flex items-center justify-center shrink-0`}>
+                                                {stat.icon}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                                                <p className="text-lg font-black text-slate-800 leading-none">{stat.value}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 border-b border-slate-100 uppercase text-[10px] font-black tracking-wider text-slate-400">
-                                        <tr>
-                                            <th className="p-5">Product</th>
-                                            <th className="p-5">Category</th>
-                                            <th className="p-5">Price</th>
-                                            <th className="p-5">Stock</th>
-                                            <th className="p-5">Expiry Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {inventory.map(item => (
-                                            <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group cursor-pointer" onClick={() => setSelectedInventory(item)}>
-                                                <td className="p-5 flex items-center gap-5">
-                                                    <div className="w-14 h-14 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-1 shrink-0 group-hover:shadow-md transition-shadow">
-                                                        <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors mb-0.5">{item.name}</p>
-                                                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wide">{item.brand}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="p-5">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 border border-slate-200 text-slate-600 px-3 py-1 rounded-full mb-1.5 block w-max">{item.category}</span>
-                                                    <span className="text-xs text-slate-400 font-medium">{item.subCategory}</span>
-                                                </td>
-                                                <td className="p-5">
-                                                    <p className="font-black text-slate-800 text-sm">₹{Number(item?.price || 0).toFixed(2)}</p>
-                                                    {Number(item?.originalPrice || 0) > Number(item?.price || 0) && (
-                                                        <p className="text-[11px] text-slate-400 font-bold line-through mt-0.5">₹{Number(item?.originalPrice || 0).toFixed(2)}</p>
-                                                    )}
-                                                </td>
-                                                <td className="p-5">
-                                                    <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${item.stock > 50 ? 'bg-green-50 text-green-600 border border-green-100' :
-                                                        item.stock > 20 ? 'bg-yellow-50 text-yellow-600 border border-yellow-100' :
-                                                            'bg-red-50 text-red-600 border border-red-100'
-                                                        }`}>
-                                                        {item.stock} Units
-                                                    </span>
-                                                </td>
-                                                <td className="p-5">
-                                                    <p className="text-sm font-bold text-slate-600">
-                                                        {item?.expiryDate ? new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'N/A'}
-                                                    </p>
-                                                </td>
+
+                            {/* INVENTORY TABLE CONTAINER */}
+                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/40 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex items-center justify-between gap-8 bg-slate-50/30">
+                                    <div className="flex-1 max-w-md relative">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input type="text" placeholder="Search by name, brand or category..." className="w-full bg-white border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-xs font-bold focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none" />
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button className="p-3 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-colors shadow-sm"><Printer size={18} /></button>
+                                        <button className="bg-indigo-600 text-white px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center gap-2">
+                                            <Plus size={16} /> Add Product
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Product Details</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Classification</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pricing</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Availability</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Expiry</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {inventory.map((item, idx) => (
+                                                <tr key={item.id} className="hover:bg-slate-50/80 transition-all group cursor-pointer" onClick={() => setSelectedInventory(item)}>
+                                                    <td className="px-8 py-6 flex items-center gap-5">
+                                                        <div className="w-16 h-16 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex items-center justify-center p-2 shrink-0 group-hover:scale-105 transition-transform group-hover:shadow-md">
+                                                            <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                                                        </div>
+                                                        <div className="space-y-0.5">
+                                                            <p className="font-black text-slate-800 text-sm tracking-tight group-hover:text-indigo-600 transition-colors">{item.name}</p>
+                                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">{item.brand}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-3 py-1.5 rounded-lg border border-slate-200/60 mb-1.5 inline-block">
+                                                            {item.category}
+                                                        </span>
+                                                        <p className="text-[11px] text-slate-400 font-medium px-1">{item.subCategory}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-black text-slate-800">₹{Number(item?.price || 0).toLocaleString()}</span>
+                                                            {Number(item?.originalPrice || 0) > Number(item?.price || 0) && (
+                                                                <span className="text-[10px] text-slate-400 font-bold line-through">MRP: ₹{Number(item?.originalPrice || 0).toLocaleString()}</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-center">
+                                                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${item.stock > 50 ? 'bg-emerald-50 text-emerald-600 border-emerald-100 group-hover:bg-emerald-100' :
+                                                            item.stock > 20 ? 'bg-amber-50 text-amber-600 border-amber-100 group-hover:bg-amber-100' :
+                                                                'bg-rose-50 text-rose-600 border-rose-100 group-hover:bg-rose-100 animate-pulse'
+                                                            }`}>
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${item.stock > 50 ? 'bg-emerald-500' :
+                                                                item.stock > 20 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                }`} />
+                                                            {item.stock} Units
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-xs font-black text-slate-600 tracking-tight">
+                                                                {item?.expiryDate ? new Date(item.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'N/A'}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Exp. Date</span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {inventory.length === 0 && (
+                                    <div className="p-24 text-center space-y-4 bg-slate-50/50">
+                                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto text-slate-300">
+                                            <Package size={24} />
+                                        </div>
+                                        <p className="text-slate-400 font-bold text-sm">No products found in the database.</p>
+                                    </div>
+                                )}
                             </div>
-                            {inventory.length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No products found in inventory.</div>}
                         </Motion.div>
                     )}
 
                     {/* USER MANAGEMENT VIEW */}
                     {activeTab === 'users' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-white overflow-hidden">
-                            <div className="p-6 border-b border-slate-100/60 bg-slate-50/50 flex flex-col items-start gap-4">
-                                <div className="flex justify-between items-center w-full">
-                                    <div>
-                                        <h3 className="font-bold text-slate-800 text-lg">Staff Users</h3>
-                                        <p className="text-[11px] text-slate-500 font-medium">Manage Doctors, Lab Technicians, Pharmacists, and Admins</p>
+                        <Motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="space-y-8">
+
+                            {/* USER MANAGEMENT HEADER & KPIs */}
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-2">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                        <Users size={14} />
+                                        <span>Identity & Access</span>
                                     </div>
-                                    <button onClick={() => setShowUserModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20 flex items-center gap-2">
-                                        <Plus size={16} /> Add New User
-                                    </button>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-tight">Staff Management</h2>
+                                    <p className="text-slate-500 font-medium text-sm">Control administrative access and manage hospital personnel.</p>
                                 </div>
-                                <div className="flex bg-slate-200/50 p-1 rounded-xl w-full max-w-2xl overflow-x-auto">
-                                    {['all', 'doctor', 'admin', 'pharmacist', 'lab'].map(r => (
-                                        <button key={r} onClick={() => setActiveRoleTab(r)} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${activeRoleTab === r ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
-                                            {r === 'all' ? 'All Roles' : `${r}s`}
-                                        </button>
+                                <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                                    {[
+                                        { label: "Total Staff", value: staffUsers.length, icon: <Users size={14} />, color: "bg-indigo-50 text-indigo-600" },
+                                        { label: "Doctors", value: staffUsers.filter(u => u.role === 'doctor').length, icon: <Briefcase size={14} />, color: "bg-blue-50 text-blue-600" },
+                                        { label: "Active Now", value: staffUsers.filter(u => u.is_active).length, icon: <CheckCircle2 size={14} />, color: "bg-emerald-50 text-emerald-600" }
+                                    ].map((stat, idx) => (
+                                        <div key={idx} className="bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 min-w-[140px]">
+                                            <div className={`w-8 h-8 rounded-lg ${stat.color} flex items-center justify-center shrink-0`}>
+                                                {stat.icon}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                                                <p className="text-lg font-black text-slate-800 leading-none">{stat.value}</p>
+                                            </div>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 border-b border-slate-100 uppercase text-[10px] font-black tracking-wider text-slate-400">
-                                        <tr>
-                                            <th className="p-5">User ID</th>
-                                            <th className="p-5">Name & Email</th>
-                                            <th className="p-5">Role/Dept</th>
-                                            <th className="p-5">Status</th>
-                                            <th className="p-5 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).map(user => (
-                                            <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
-                                                <td className="p-5 font-bold text-slate-500 text-xs">#{user.id}</td>
-                                                <td className="p-5">
-                                                    <p className="font-bold text-slate-800 text-sm">{user.full_name}</p>
-                                                    <p className="text-[11px] text-slate-500">{user.email}</p>
-                                                </td>
-                                                <td className="p-5">
-                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full w-max inline-block ${user.role === 'admin' ? 'bg-rose-50 text-rose-600' :
-                                                        user.role === 'doctor' ? 'bg-blue-50 text-blue-600' :
-                                                            user.role === 'pharmacist' ? 'bg-emerald-50 text-emerald-600' :
-                                                                'bg-purple-50 text-purple-600'
-                                                        }`}>
-                                                        {user.role}
-                                                    </span>
-                                                    {user.department && <p className="text-xs text-slate-400 font-medium mt-1">{user.department}</p>}
-                                                </td>
-                                                <td className="p-5">
-                                                    <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${user.is_active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                                        {user.is_active ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                </td>
-                                                <td className="p-5 text-right">
-                                                    <div className="flex gap-2 justify-end">
-                                                        <button onClick={() => toggleUserStatus(user.id, user.is_active)} className="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
-                                                            {user.is_active ? 'Deactivate' : 'Activate'}
-                                                        </button>
-                                                        <button onClick={() => resetUserPassword(user.id)} className="text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors">
-                                                            Reset Key
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
+
+                            {/* STAFF TABLE CONTAINER */}
+                            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/40 overflow-hidden">
+                                <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 bg-slate-50/30">
+                                    <div className="flex bg-white p-1.5 rounded-[1.25rem] border border-slate-200 shadow-sm gap-1 w-full md:w-auto overflow-x-auto">
+                                        {['all', 'doctor', 'admin', 'pharmacist', 'lab'].map(r => (
+                                            <button
+                                                key={r}
+                                                onClick={() => setActiveRoleTab(r)}
+                                                className={`px-5 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${activeRoleTab === r ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                                                    }`}
+                                            >
+                                                {r === 'all' ? 'All Personnel' : `${r}s`}
+                                            </button>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowUserModal(true)}
+                                        className="bg-indigo-600 text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
+                                    >
+                                        <Plus size={16} /> Register New Staff
+                                    </button>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50/50">
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee Information</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Role & Department</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Contact</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Access Controls</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).map((user, idx) => (
+                                                <tr key={user.id} className="hover:bg-slate-50/80 transition-all group">
+                                                    <td className="px-8 py-6 flex items-center gap-4">
+                                                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-500 font-black text-xs shadow-sm group-hover:from-indigo-500 group-hover:to-indigo-600 group-hover:text-white transition-all">
+                                                            {user.full_name[0]}
+                                                        </div>
+                                                        <div className="space-y-0.5">
+                                                            <p className="font-black text-slate-800 text-sm tracking-tight">{user.full_name}</p>
+                                                            <p className="text-[11px] text-slate-400 font-medium">#{user.id} • {user.email}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${user.role === 'admin' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                                user.role === 'doctor' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                                                    user.role === 'pharmacist' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                        'bg-purple-50 text-purple-600 border-purple-100'
+                                                            }`}>
+                                                            {user.role}
+                                                        </span>
+                                                        {user.department && <p className="text-[11px] text-slate-400 font-bold mt-1.5 tracking-wide">{user.department}</p>}
+                                                    </td>
+                                                    <td className="px-8 py-6 text-center">
+                                                        <p className="text-xs font-bold text-slate-600 tracking-tight">{user.phone || 'N/A'}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-center">
+                                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${user.is_active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                                                            }`}>
+                                                            <div className={`w-1 h-1 rounded-full ${user.is_active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                            {user.is_active ? 'Active' : 'Revoked'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => toggleUserStatus(user.id, user.is_active)}
+                                                                className={`p-2 rounded-xl transition-all active:scale-95 ${user.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
+                                                                title={user.is_active ? 'Revoke Access' : 'Grant Access'}
+                                                            >
+                                                                {user.is_active ? <Shield size={16} /> : <CheckCircle2 size={16} />}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => resetUserPassword(user.id)}
+                                                                className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-all active:scale-95"
+                                                                title="Reset Credentials"
+                                                            >
+                                                                <RefreshCw size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).length === 0 && (
+                                    <div className="p-24 text-center space-y-4 bg-slate-50/10">
+                                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto text-slate-200">
+                                            <Users size={24} />
+                                        </div>
+                                        <p className="text-slate-400 font-bold text-sm tracking-tight uppercase">No records found for this role query.</p>
+                                    </div>
+                                )}
                             </div>
-                            {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No staff users found for this role.</div>}
                         </Motion.div>
                     )}
 
                     {/* ROLES & PERMISSIONS VIEW */}
-                    {activeTab === 'roles' && (
-                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                            <div className="bg-white p-6 justify-between items-center rounded-3xl shadow-sm border border-slate-100">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">Role-Based Access Control</h3>
-                                    <p className="text-sm text-slate-500">Configure what modules each role can access.</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {rolePermissions.map((rp) => (
-                                    <div key={rp.role_name} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
-                                                <Shield size={20} />
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-slate-800 text-lg capitalize">{rp.role_name} Role</h4>
-                                                <p className="text-[11px] text-slate-400 uppercase tracking-widest font-black">Module Permissions</p>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {Object.entries({
-                                                "manage_users": "Users & Roles Management",
-                                                "manage_appointments": "Appointments & Consults",
-                                                "manage_lab": "Laboratory Queue",
-                                                "manage_pharmacy": "Pharmacy Dashboard",
-                                                "manage_inventory": "Inventory Controls"
-                                            }).map(([key, label]) => (
-                                                <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                    <span className="text-sm font-bold text-slate-700">{label}</span>
-                                                    <button
-                                                        onClick={() => toggleRolePermission(rp.role_name, key, rp.permissions[key])}
-                                                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out relative ${rp.permissions[key] ? 'bg-green-500' : 'bg-slate-300'}`}
-                                                    >
-                                                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${rp.permissions[key] ? 'translate-x-6' : 'translate-x-0'}`} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
+                    {
+                        activeTab === 'roles' && (
+                            <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                                <div className="bg-white p-6 justify-between items-center rounded-3xl shadow-sm border border-slate-100">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-lg">Role-Based Access Control</h3>
+                                        <p className="text-sm text-slate-500">Configure what modules each role can access.</p>
                                     </div>
-                                ))}
-                                {rolePermissions.length === 0 && <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No role permissions defined.</div>}
-                            </div>
-                        </Motion.div>
-                    )}
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {rolePermissions.map((rp) => (
+                                        <div key={rp.role_name} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                    <Shield size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 text-lg capitalize">{rp.role_name} Role</h4>
+                                                    <p className="text-[11px] text-slate-400 uppercase tracking-widest font-black">Module Permissions</p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {Object.entries({
+                                                    "manage_users": "Users & Roles Management",
+                                                    "manage_appointments": "Appointments & Consults",
+                                                    "manage_lab": "Laboratory Queue",
+                                                    "manage_pharmacy": "Pharmacy Dashboard",
+                                                    "manage_inventory": "Inventory Controls"
+                                                }).map(([key, label]) => (
+                                                    <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                        <span className="text-sm font-bold text-slate-700">{label}</span>
+                                                        <button
+                                                            onClick={() => toggleRolePermission(rp.role_name, key, rp.permissions[key])}
+                                                            className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease -in -out relative ${rp.permissions[key] ? 'bg-green-500' : 'bg-slate-300'} `}
+                                                        >
+                                                            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${rp.permissions[key] ? 'translate-x-6' : 'translate-x-0'} `} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {rolePermissions.length === 0 && <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No role permissions defined.</div>}
+                                </div>
+                            </Motion.div>
+                        )
+                    }
 
 
-                </div>
-            </div>
+                </div >
+            </div >
 
             {/* ROBUST MANAGEMENT MODAL */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {selectedAppt && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                         <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
@@ -1319,9 +1845,26 @@ const Dashboard = ({ onLogout, onBack }) => {
                                     </>
                                 ) : (
                                     /* DOCTOR ACTIONS */
-                                    <button onClick={() => handleStatus('appointment', selectedAppt.id, 'confirmed')} className="w-full flex items-center justify-between p-4 bg-green-50 text-green-700 rounded-xl font-bold hover:bg-green-100 border border-green-200 transition-colors">
-                                        Confirm Booking <Check size={18} />
-                                    </button>
+                                    <div className="space-y-3">
+                                        {(selectedAppt.status === 'pending' || selectedAppt.status === 'confirmed') && (
+                                            <button onClick={() => handleStatus('appointment', selectedAppt.id, 'in_progress')} className="w-full flex items-center justify-between p-4 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 border border-blue-200 transition-colors">
+                                                <span>Start Consultation</span>
+                                                <ArrowUpRight size={18} />
+                                            </button>
+                                        )}
+                                        {selectedAppt.status === 'in_progress' && (
+                                            <button onClick={() => handleStatus('appointment', selectedAppt.id, 'completed')} className="w-full flex items-center justify-between p-4 bg-emerald-50 text-emerald-700 rounded-xl font-bold hover:bg-emerald-100 border border-emerald-200 transition-colors">
+                                                <span>Complete Consultation</span>
+                                                <Check size={18} />
+                                            </button>
+                                        )}
+                                        {selectedAppt.status === 'pending' && (
+                                            <button onClick={() => handleStatus('appointment', selectedAppt.id, 'confirmed')} className="w-full flex items-center justify-between p-4 bg-slate-50 text-slate-700 rounded-xl font-bold hover:bg-slate-100 border border-slate-200 transition-colors">
+                                                <span>Confirm Booking</span>
+                                                <Check size={18} />
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
 
                                 {/* RESCHEDULE ACTION */}
@@ -1343,10 +1886,10 @@ const Dashboard = ({ onLogout, onBack }) => {
                         </Motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* INVENTORY MANAGEMENT MODAL */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {selectedInventory && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                         <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden ring-1 ring-slate-900/5">
@@ -1377,7 +1920,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                                     </div>
                                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Stock</p>
-                                        <p className={`text-2xl font-black ${selectedInventory.stock > 20 ? 'text-green-600' : 'text-red-500'}`}>{selectedInventory.stock} <span className="text-sm font-bold opacity-70">Units</span></p>
+                                        <p className={`text-2xl font-black ${selectedInventory.stock > 20 ? 'text-green-600' : 'text-red-500'} `}>{selectedInventory.stock} <span className="text-sm font-bold opacity-70">Units</span></p>
                                         <p className="text-xs font-bold text-slate-500 mt-0.5">Expires: {new Date(selectedInventory.expiryDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
                                     </div>
                                 </div>
@@ -1397,10 +1940,10 @@ const Dashboard = ({ onLogout, onBack }) => {
                         </Motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* LAB BOOKING MODAL */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showLabBookingModal && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                         <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
@@ -1428,10 +1971,10 @@ const Dashboard = ({ onLogout, onBack }) => {
                         </Motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* USER CREATION MODAL */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showUserModal && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                         <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
@@ -1480,7 +2023,7 @@ const Dashboard = ({ onLogout, onBack }) => {
                         </Motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
         </div >
     );
