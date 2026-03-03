@@ -116,9 +116,10 @@ def get_subcategories(category: str = Query(None)):
 
 @router.post("/orders")
 def create_order(order_data: dict):
+    from datetime import datetime
     import random
     order_id = random.randint(1000, 9999)
-    order = {"id": order_id, **order_data}
+    order = {"id": f"ORD-RX-{order_id}", "created_at": datetime.utcnow().isoformat(), **order_data}
     ORDERS_DB.append(order)
     return order
 

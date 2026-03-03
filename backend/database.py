@@ -63,6 +63,7 @@ class User(Base):
     role = Column(String, default=UserRole.PATIENT)
     phone = Column(String, nullable=True)
     department = Column(String, nullable=True) # New field for doctors
+    is_active = Column(Boolean, default=True) # User Management feature
     
     # Patient Specifics
     patient_uid = Column(String, unique=True, nullable=True) # The "PAT-2026-X92" ID
@@ -112,6 +113,13 @@ class Prescription(Base):
     
     patient = relationship("User", back_populates="prescriptions")
 
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    role_name = Column(String, unique=True, index=True) # "admin", "doctor", etc.
+    permissions = Column(JSON, default={}) # e.g. {"manage_users": True, "manage_inventory": False}
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     
@@ -131,6 +139,27 @@ def get_db():
 
 # --- 5. Create Tables Function ---
 def create_tables():
+    # Attempt automatic migrations for SQLite
+    if "sqlite" in DATABASE_URL:
+        import sqlite3
+        try:
+            # Connect directly to perform ALTER TABLE safely
+            # SQLite ALTER TABLE ADD COLUMN ignores 'DEFAULT' cleanly if the column already exists
+            db_path = DATABASE_URL.replace("sqlite:///", "")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1;")
+                conn.commit()
+                print(" Successfully migrated: Added `is_active` to users table.")
+            except sqlite3.OperationalError as e:
+                # OperationalError: duplicate column name, which is fine!
+                if "duplicate column name" not in str(e).lower():
+                    print(f" Migration Warning (is_active): {e}")
+            conn.close()
+        except Exception as e:
+            print(f" General Migration Error: {e}")
+
     Base.metadata.create_all(bind=engine)
     print(" Database Tables Created Successfully")
     auto_seed()
@@ -158,6 +187,22 @@ def auto_seed():
                 )
                 db.add(doc)
         db.commit()
+
+        # 1b. Seed default Role Permissions
+        permissions_count = db.query(RolePermission).count()
+        if permissions_count == 0:
+            print(" Seeding Default Role Permissions...")
+            # Default permissions structure
+            default_perms = [
+                {"role": UserRole.ADMIN, "perms": {"manage_users": True, "manage_roles": True, "manage_appointments": True, "manage_lab": True, "manage_pharmacy": True, "manage_inventory": True}},
+                {"role": UserRole.DOCTOR, "perms": {"manage_users": False, "manage_roles": False, "manage_appointments": True, "manage_lab": False, "manage_pharmacy": False, "manage_inventory": False}},
+                {"role": UserRole.LAB, "perms": {"manage_users": False, "manage_roles": False, "manage_appointments": False, "manage_lab": True, "manage_pharmacy": False, "manage_inventory": False}},
+                {"role": UserRole.PHARMACIST, "perms": {"manage_users": False, "manage_roles": False, "manage_appointments": False, "manage_lab": False, "manage_pharmacy": True, "manage_inventory": True}}
+            ]
+            for p_data in default_perms:
+                rp = RolePermission(role_name=p_data["role"], permissions=p_data["perms"])
+                db.add(rp)
+            db.commit()
 
         # 2. Create Mock Patients if none
         patient_count = db.query(User).filter(User.role == "patient").count()

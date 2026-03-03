@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { adminAPI } from '../services/adminApi';
 import io from 'socket.io-client';
-import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus } from 'lucide-react';
+import { Calendar, Pill, Activity, Bell, LogOut, LayoutDashboard, Clock, Check, X, AlertCircle, RefreshCw, FileText, TestTube, Truck, Package, Users, TrendingUp, AlertTriangle, BarChart as BarChartIcon, Receipt, Printer, CreditCard, Plus, Shield } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import AppointmentsCalendar from '../components/AppointmentsCalendar';
@@ -74,6 +74,8 @@ const Dashboard = ({ onLogout }) => {
     const [orders, setOrders] = useState([]);
     const [inventory, setInventory] = useState([]);
     const [allDoctors, setAllDoctors] = useState([]); // Master list of doctors
+    const [staffUsers, setStaffUsers] = useState([]);
+    const [rolePermissions, setRolePermissions] = useState([]);
     const [stats, setStats] = useState({ doctors: 0, lab: 0, pharmacy: 0, inventory: 0 });
     const [backendDiag, setBackendDiag] = useState(null); // Backend health check state
 
@@ -90,6 +92,12 @@ const Dashboard = ({ onLogout }) => {
         patient_phone: '',
         test_name: ''
     });
+
+    // USER MANAGEMENT STATE
+    const [showUserModal, setShowUserModal] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({ full_name: '', email: '', password: '', role: 'doctor', department: '', phone: '' });
+    const [activeRoleTab, setActiveRoleTab] = useState('all'); // NEW: For filtering users by role inline
+    const [showProfileMenu, setShowProfileMenu] = useState(false); // NEW: Dropdown menu for profile
 
     const adminName = localStorage.getItem('admin_name') || 'Staff';
 
@@ -110,6 +118,15 @@ const Dashboard = ({ onLogout }) => {
             setOrders(rxData);
             setInventory(invData);
             setAllDoctors(docData);
+
+            try {
+                const usersRes = await adminAPI.getUsers();
+                const rolesRes = await adminAPI.getRolePermissions();
+                setStaffUsers(Array.isArray(usersRes?.data) ? usersRes.data : []);
+                setRolePermissions(Array.isArray(rolesRes?.data) ? rolesRes.data : []);
+            } catch (err) {
+                console.error("Failed to load users/roles", err);
+            }
 
             setStats({
                 doctors: (apptData || []).filter(a => a?.type !== 'lab_test' && a?.status?.toLowerCase() === 'pending').length,
@@ -135,6 +152,16 @@ const Dashboard = ({ onLogout }) => {
         fetchData();
         alert("Data Sync Requested. Refreshing dashboards from the central database...");
     };
+
+    // RBAC: Get permissions for the current logged-in user's role
+    const getMyPermissions = () => {
+        if (adminRole === 'admin') {
+            return { manage_users: true, manage_roles: true, manage_appointments: true, manage_lab: true, manage_pharmacy: true, manage_inventory: true };
+        }
+        const myRoleData = rolePermissions.find(r => r.role_name === adminRole);
+        return myRoleData?.permissions || {};
+    };
+    const myPerms = getMyPermissions();
 
     // --- INITIAL SETUP ---
     useEffect(() => {
@@ -190,6 +217,49 @@ const Dashboard = ({ onLogout }) => {
         }
     };
 
+    const handleCreateUser = async (e) => {
+        e.preventDefault();
+        try {
+            await adminAPI.createUser(newUserForm);
+            setShowUserModal(false);
+            setNewUserForm({ full_name: '', email: '', password: '', role: 'doctor', department: '', phone: '' });
+            fetchData();
+        } catch (error) {
+            alert(error.response?.data?.detail || "Failed to create user.");
+        }
+    };
+
+    const toggleUserStatus = async (id, currentStatus) => {
+        try {
+            await adminAPI.updateUserStatus(id, !currentStatus);
+            fetchData();
+        } catch (error) {
+            alert("Failed to update status.");
+        }
+    };
+
+    const resetUserPassword = async (id) => {
+        if (!window.confirm("Reset password to 'defaultpassword'?")) return;
+        try {
+            await adminAPI.resetUserPassword(id);
+            alert("Password reset successfully.");
+        } catch (error) {
+            alert("Failed to reset password.");
+        }
+    };
+
+    const toggleRolePermission = async (roleName, permissionKey, currentValue) => {
+        const role = rolePermissions.find(r => r.role_name === roleName);
+        if (!role) return;
+        const updatedPerms = { ...role.permissions, [permissionKey]: !currentValue };
+        try {
+            await adminAPI.updateRolePermissions({ role_name: roleName, permissions: updatedPerms });
+            fetchData();
+        } catch (error) {
+            alert("Failed to update permissions.");
+        }
+    };
+
 
 
     return (
@@ -199,9 +269,9 @@ const Dashboard = ({ onLogout }) => {
             <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] bg-purple-400/20 rounded-full blur-[120px] pointer-events-none mix-blend-multiply"></div>
 
             {/* SIDEBAR */}
-            <div className="w-72 bg-[#0a0f1d] border-r border-slate-800/50 text-white p-6 flex flex-col justify-between relative shadow-2xl z-20">
+            <div className="w-72 bg-[#0a0f1d] border-r border-slate-800/50 text-white flex flex-col relative shadow-2xl z-20 overflow-y-auto overflow-x-hidden scrollbar-hide py-6">
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none"></div>
-                <div className="relative z-10">
+                <div className="relative z-10 px-6 flex-1">
                     <div
                         className="flex items-center gap-4 mb-12 px-2 cursor-pointer group"
                         onClick={() => setActiveTab('overview')}
@@ -215,15 +285,18 @@ const Dashboard = ({ onLogout }) => {
 
                         {/* FULL ACCESS FOR ALL ADMIN LOGINS */}
                         <SidebarItem id="analytics" Icon={BarChartIcon} label="Analytics" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
-                        <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="appointments" Icon={Calendar} label="Appointments" count={stats.doctors} visible={myPerms.manage_appointments} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="lab" Icon={Activity} label="Lab Queue" count={stats.lab} visible={myPerms.manage_lab} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="pharmacy" Icon={Pill} label="Pharmacy" count={stats.pharmacy} visible={myPerms.manage_pharmacy} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="inventory" Icon={Package} label="Inventory" count={stats.inventory} visible={myPerms.manage_inventory} activeTab={activeTab} setActiveTab={setActiveTab} />
                         <SidebarItem id="billing" Icon={Receipt} label="Billing & Invoices" count={0} visible={true} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <div className="my-2 border-t border-slate-800/50"></div>
+                        <SidebarItem id="users" Icon={Users} label="User Management" count={0} visible={myPerms.manage_users} activeTab={activeTab} setActiveTab={setActiveTab} />
+                        <SidebarItem id="roles" Icon={Shield} label="Roles & Permissions" count={0} visible={myPerms.manage_roles || adminRole === 'admin'} activeTab={activeTab} setActiveTab={setActiveTab} />
                     </div>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-slate-800/50">
+                <div className="mt-8 pt-6 px-6 border-t border-slate-800/50 relative z-10 flex-shrink-0">
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/30">
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">System Health</p>
                         <div className="grid grid-cols-2 gap-2">
@@ -294,16 +367,40 @@ const Dashboard = ({ onLogout }) => {
                         {activeTab === 'inventory' && <><div className="p-2 bg-indigo-50 rounded-xl"><Package className="text-indigo-600" size={24} /></div> Product Inventory</>}
                         {activeTab === 'analytics' && <><div className="p-2 bg-rose-50 rounded-xl"><BarChartIcon className="text-rose-600" size={24} /></div> Analytics Hub</>}
                         {activeTab === 'billing' && <><div className="p-2 bg-cyan-50 rounded-xl"><Receipt className="text-cyan-600" size={24} /></div> Transactions & Billing</>}
+                        {activeTab === 'users' && <><div className="p-2 bg-indigo-50 rounded-xl"><Users className="text-indigo-600" size={24} /></div> User Management</>}
+                        {activeTab === 'roles' && <><div className="p-2 bg-slate-100 rounded-xl"><Shield className="text-slate-600" size={24} /></div> Roles & Permissions</>}
                         {activeTab === 'overview' && <><div className="p-2 bg-slate-100 rounded-xl"><LayoutDashboard className="text-slate-600" size={24} /></div> Overview</>}
                     </h2>
-                    <div className="flex items-center gap-4">
-                        <div className="text-right">
+                    <div className="flex items-center gap-4 relative">
+                        <div className="text-right hidden sm:block">
                             <p className="text-sm font-bold text-slate-800">{adminName}</p>
                             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-100 px-3 py-1 rounded-full mt-1 border border-slate-200/60 inline-block">{adminRole === 'lab' ? 'Technician' : rawRole}</p>
                         </div>
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 border-2 border-white shadow-sm flex items-center justify-center font-bold text-slate-500">
+                        <button
+                            onClick={() => setShowProfileMenu(!showProfileMenu)}
+                            className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-200 to-slate-100 border-2 border-white shadow-sm flex items-center justify-center font-bold text-slate-500 hover:scale-105 transition-transform cursor-pointer relative z-30"
+                        >
                             {adminName.charAt(0).toUpperCase()}
-                        </div>
+                        </button>
+
+                        {/* PROFILE DROPDOWN MENU */}
+                        {showProfileMenu && (
+                            <>
+                                <div className="fixed inset-0 z-20" onClick={() => setShowProfileMenu(false)}></div>
+                                <div className="absolute top-14 right-0 mt-2 w-48 bg-white border border-slate-100/60 rounded-2xl shadow-xl shadow-slate-200/50 z-30 overflow-hidden transform origin-top-right transition-all">
+                                    <div className="p-4 border-b border-slate-50 sm:hidden">
+                                        <p className="text-sm font-bold text-slate-800 line-clamp-1">{adminName}</p>
+                                        <p className="text-[10px] text-indigo-500 font-black uppercase tracking-wider">{adminRole === 'lab' ? 'Technician' : rawRole}</p>
+                                    </div>
+                                    <button
+                                        onClick={onLogout}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-500 hover:bg-rose-50 transition-colors"
+                                    >
+                                        <LogOut size={16} /> Sign Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -681,7 +778,7 @@ const Dashboard = ({ onLogout }) => {
                                                     <td className="p-4"><p className="text-xs font-black text-slate-800">₹{item.amount}</p></td>
                                                     <td className="p-4">
                                                         <span className={`text-[10px] font-bold px-2 py-1 rounded-lg uppercase tracking-tight ${item.status === 'Paid' ? 'bg-emerald-50 text-emerald-600' :
-                                                                item.status === 'Pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
+                                                            item.status === 'Pending' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
                                                             }`}>
                                                             {item.status}
                                                         </span>
@@ -926,6 +1023,127 @@ const Dashboard = ({ onLogout }) => {
                         </Motion.div>
                     )}
 
+                    {/* USER MANAGEMENT VIEW */}
+                    {activeTab === 'users' && (
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-white overflow-hidden">
+                            <div className="p-6 border-b border-slate-100/60 bg-slate-50/50 flex flex-col items-start gap-4">
+                                <div className="flex justify-between items-center w-full">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-lg">Staff Users</h3>
+                                        <p className="text-[11px] text-slate-500 font-medium">Manage Doctors, Lab Technicians, Pharmacists, and Admins</p>
+                                    </div>
+                                    <button onClick={() => setShowUserModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20 flex items-center gap-2">
+                                        <Plus size={16} /> Add New User
+                                    </button>
+                                </div>
+                                <div className="flex bg-slate-200/50 p-1 rounded-xl w-full max-w-2xl overflow-x-auto">
+                                    {['all', 'doctor', 'admin', 'pharmacist', 'lab'].map(r => (
+                                        <button key={r} onClick={() => setActiveRoleTab(r)} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${activeRoleTab === r ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>
+                                            {r === 'all' ? 'All Roles' : `${r}s`}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-100 uppercase text-[10px] font-black tracking-wider text-slate-400">
+                                        <tr>
+                                            <th className="p-5">User ID</th>
+                                            <th className="p-5">Name & Email</th>
+                                            <th className="p-5">Role/Dept</th>
+                                            <th className="p-5">Status</th>
+                                            <th className="p-5 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).map(user => (
+                                            <tr key={user.id} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="p-5 font-bold text-slate-500 text-xs">#{user.id}</td>
+                                                <td className="p-5">
+                                                    <p className="font-bold text-slate-800 text-sm">{user.full_name}</p>
+                                                    <p className="text-[11px] text-slate-500">{user.email}</p>
+                                                </td>
+                                                <td className="p-5">
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full w-max inline-block ${user.role === 'admin' ? 'bg-rose-50 text-rose-600' :
+                                                        user.role === 'doctor' ? 'bg-blue-50 text-blue-600' :
+                                                            user.role === 'pharmacist' ? 'bg-emerald-50 text-emerald-600' :
+                                                                'bg-purple-50 text-purple-600'
+                                                        }`}>
+                                                        {user.role}
+                                                    </span>
+                                                    {user.department && <p className="text-xs text-slate-400 font-medium mt-1">{user.department}</p>}
+                                                </td>
+                                                <td className="p-5">
+                                                    <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${user.is_active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                                        {user.is_active ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </td>
+                                                <td className="p-5 text-right">
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button onClick={() => toggleUserStatus(user.id, user.is_active)} className="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                                                            {user.is_active ? 'Deactivate' : 'Activate'}
+                                                        </button>
+                                                        <button onClick={() => resetUserPassword(user.id)} className="text-xs font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors">
+                                                            Reset Key
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {staffUsers.filter(u => activeRoleTab === 'all' || u.role === activeRoleTab).length === 0 && <div className="p-16 text-center text-slate-400 font-medium">No staff users found for this role.</div>}
+                        </Motion.div>
+                    )}
+
+                    {/* ROLES & PERMISSIONS VIEW */}
+                    {activeTab === 'roles' && (
+                        <Motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                            <div className="bg-white p-6 justify-between items-center rounded-3xl shadow-sm border border-slate-100">
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-lg">Role-Based Access Control</h3>
+                                    <p className="text-sm text-slate-500">Configure what modules each role can access.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {rolePermissions.map((rp) => (
+                                    <div key={rp.role_name} className="bg-white p-6 rounded-3xl shadow-xl shadow-slate-200/40 border border-white">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                <Shield size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 text-lg capitalize">{rp.role_name} Role</h4>
+                                                <p className="text-[11px] text-slate-400 uppercase tracking-widest font-black">Module Permissions</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {Object.entries({
+                                                "manage_users": "Users & Roles Management",
+                                                "manage_appointments": "Appointments & Consults",
+                                                "manage_lab": "Laboratory Queue",
+                                                "manage_pharmacy": "Pharmacy Dashboard",
+                                                "manage_inventory": "Inventory Controls"
+                                            }).map(([key, label]) => (
+                                                <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                    <span className="text-sm font-bold text-slate-700">{label}</span>
+                                                    <button
+                                                        onClick={() => toggleRolePermission(rp.role_name, key, rp.permissions[key])}
+                                                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out relative ${rp.permissions[key] ? 'bg-green-500' : 'bg-slate-300'}`}
+                                                    >
+                                                        <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${rp.permissions[key] ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                                {rolePermissions.length === 0 && <div className="col-span-2 p-16 text-center text-slate-400 font-medium">No role permissions defined.</div>}
+                            </div>
+                        </Motion.div>
+                    )}
+
 
                 </div>
             </div>
@@ -1073,6 +1291,58 @@ const Dashboard = ({ onLogout }) => {
                                 </div>
                                 <button type="submit" className="w-full bg-purple-600 text-white py-4 rounded-xl font-bold hover:bg-purple-700 shadow-xl shadow-purple-500/20 transition-all mt-4">
                                     Book Lab Test
+                                </button>
+                            </form>
+                        </Motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* USER CREATION MODAL */}
+            <AnimatePresence>
+                {showUserModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                        <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Users size={18} className="text-indigo-600" /> Create System User</h3>
+                                <button onClick={() => setShowUserModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={20} className="text-slate-500" /></button>
+                            </div>
+                            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Full Name</label>
+                                        <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500" value={newUserForm.full_name} onChange={e => setNewUserForm({ ...newUserForm, full_name: e.target.value })} />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Email Address</label>
+                                        <input required type="email" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500" value={newUserForm.email} onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Role</label>
+                                        <select required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-700" value={newUserForm.role} onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}>
+                                            <option value="doctor">Doctor</option>
+                                            <option value="lab">Lab Technician</option>
+                                            <option value="pharmacist">Pharmacist</option>
+                                            <option value="admin">Super Admin</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Phone</label>
+                                        <input type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500" value={newUserForm.phone} onChange={e => setNewUserForm({ ...newUserForm, phone: e.target.value })} />
+                                    </div>
+                                    {newUserForm.role === 'doctor' && (
+                                        <div className="col-span-2">
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Department</label>
+                                            <input required type="text" placeholder="e.g. Cardiology" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500" value={newUserForm.department} onChange={e => setNewUserForm({ ...newUserForm, department: e.target.value })} />
+                                        </div>
+                                    )}
+                                    <div className="col-span-2">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Temporary Password</label>
+                                        <input required type="text" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono text-sm" placeholder="Must be changed on login" value={newUserForm.password} onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })} />
+                                    </div>
+                                </div>
+                                <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-500/20 transition-all mt-6">
+                                    Register User
                                 </button>
                             </form>
                         </Motion.div>

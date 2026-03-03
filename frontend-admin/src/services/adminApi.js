@@ -37,4 +37,14 @@ export const adminAPI = {
 
   // FETCH INVENTORY
   getMedicines: () => api.get('/pharmacy/medicines'),
+
+  // USER MANAGEMENT
+  getUsers: () => api.get('/admin/users'),
+  createUser: (data) => api.post('/admin/users', data),
+  updateUserStatus: (id, is_active) => api.put(`/admin/users/${id}/status`, { is_active }),
+  resetUserPassword: (id) => api.post(`/admin/users/${id}/reset_password`),
+
+  // ROLES & PERMISSIONS
+  getRolePermissions: () => api.get('/admin/roles/permissions'),
+  updateRolePermissions: (data) => api.put('/admin/roles/permissions', data),
 };

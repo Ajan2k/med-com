@@ -19,6 +19,21 @@ class AdminLabRequest(BaseModel):
     patient_phone: str
     test_name: str
 
+class AdminUserCreateRequest(BaseModel):
+    full_name: str
+    email: str
+    password: str
+    role: str
+    phone: Optional[str] = None
+    department: Optional[str] = None
+
+class AdminUserStatusRequest(BaseModel):
+    is_active: bool
+
+class RolePermissionUpdateRequest(BaseModel):
+    role_name: str
+    permissions: dict
+
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/appointments")
@@ -206,3 +221,91 @@ async def admin_book_lab(req: AdminLabRequest, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Error booking admin lab test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- USER MANAGEMENT ENDPOINTS ---
+
+@router.get("/users")
+def get_all_users(db: Session = Depends(get_db)):
+    from backend.database import User
+    # Return all staff users (not patients)
+    users = db.query(User).filter(User.role != "patient").all()
+    return [{
+        "id": u.id,
+        "full_name": u.full_name,
+        "email": u.email,
+        "role": u.role,
+        "phone": u.phone,
+        "department": u.department,
+        "is_active": u.is_active
+    } for u in users]
+
+@router.post("/users")
+def create_admin_user(req: AdminUserCreateRequest, db: Session = Depends(get_db)):
+    from backend.database import User
+    # Verify email uniqueness
+    existing_user = db.query(User).filter(User.email == req.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    new_user = User(
+        full_name=req.full_name,
+        email=req.email,
+        hashed_password=req.password, # In production this should be hashed properly
+        role=req.role,
+        phone=req.phone,
+        department=req.department,
+        is_active=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User created successfully", "id": new_user.id}
+
+@router.put("/users/{user_id}/status")
+def update_user_status(user_id: int, req: AdminUserStatusRequest, db: Session = Depends(get_db)):
+    from backend.database import User
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.is_active = req.is_active
+    db.commit()
+    return {"message": "User status updated successfully", "is_active": user.is_active}
+
+@router.post("/users/{user_id}/reset_password")
+def reset_user_password(user_id: int, db: Session = Depends(get_db)):
+    from backend.database import User
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.hashed_password = "defaultpassword" # Reset to known default
+    db.commit()
+    return {"message": "Password reset to defaultpassword successfully"}
+
+# --- ROLES & PERMISSIONS ENDPOINTS ---
+
+@router.get("/roles/permissions")
+def get_all_role_permissions(db: Session = Depends(get_db)):
+    from backend.database import RolePermission
+    role_perms = db.query(RolePermission).all()
+    return [{
+        "role_name": rp.role_name,
+        "permissions": rp.permissions
+    } for rp in role_perms]
+
+@router.put("/roles/permissions")
+def update_role_permissions(req: RolePermissionUpdateRequest, db: Session = Depends(get_db)):
+    from backend.database import RolePermission
+    role_perm = db.query(RolePermission).filter(RolePermission.role_name == req.role_name).first()
+    
+    if not role_perm:
+        # Create it if it doesn't exist
+        role_perm = RolePermission(role_name=req.role_name, permissions=req.permissions)
+        db.add(role_perm)
+    else:
+        # Avoid SQLAlchemy JSON mutation issues by assigning a new dictionary
+        role_perm.permissions = dict(req.permissions)
+        
+    db.commit()
+    return {"message": f"Permissions for {req.role_name} updated successfully"}

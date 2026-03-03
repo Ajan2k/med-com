@@ -725,7 +725,7 @@ const PharmacyChatView = ({ user, onLogout }) => {
                         <ShoppingBag size={20} />
                         {cartCount > 0 && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-teal-600 rounded-full border-2 border-white text-[10px] flex items-center justify-center font-bold">{cartCount}</span>}
                     </button>
-                    <button onClick={onLogout} className="ml-2 px-4 py-2 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors">LOGOUT</button>
+                    <div className="w-32 hidden sm:block"></div> {/* Spacer for Global Header */}
                 </div>
             </header>
 

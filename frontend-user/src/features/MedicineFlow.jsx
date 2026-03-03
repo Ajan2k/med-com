@@ -6,27 +6,73 @@ import {
 } from 'lucide-react';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { patientAPI } from '../services/api';
+import { pharmacyApi } from '../pharmacy/pharmacyApi';
+
+const mockAlerts = [
+    { id: 1, name: 'Atorvastatin 20mg', daysLeft: 4, message: 'Running low. Refill recommended soon.', urgency: 'high' },
+    { id: 2, name: 'Metformin 500mg', daysLeft: 10, message: 'Stock adequate for next week.', urgency: 'medium' },
+];
+
+// Minimal base64 1-page PDF string (A blank page) to simulate a real file download
+const dummyPdfBase64 = "JVBERi0xLjcKCjEgMCBvYmogICUgZW50cnkgcG9pbnQKPDwKICAvVHlwZSAvQ2F0YWxvZwogIC9QYWdlcyAyIDAgUgo+PgplbmRvYmoKCjIgMCBvYmoKPDwKICAvVHlwZSAvUGFnZXMKICAvTWVkaWFCb3ggWyAwIDAgMjAwIDIwMCBdCiAgL0NvdW50IDEKICAvS2lkcyBbIDMgMCBSIF0KPj4KZW5kb2JqCgozIDAgb2JqCjw8CiAgL1R5cGUgL1BhZ2UKICAvUGFyZW50IDIgMCBSCiAgL1Jlc291cmNlcyA8PAogICAgL0ZvbnQgPDwKICAgICAgL0YxIDQgMCBSCj4+Cj4+CiAgL0NvbnRlbnRzIDUgMCBSCj4+CmVuZG9iagoKNCAwIG9iago8PAogIC9UeXBlIC9Gb250CiAgL1N1YnR5cGUgL1R5cGUxCiAgL0Jhc2VGb250IC9UaW1lcy1Sb21hbgo+PgplbmRvYmoKCjUgMCBvYmoKPDwgL0xlbmd0aCA1MSA+PgpzdHJlYW0KQlQKL0YxIDE4IFRmCjAgMCAwIHJnCjEwIDEwMCBUZAooTWVkaWNhcmUrIER1bW15IEludm9pY2UpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxMCAwMDAwMCBuIAowMDAwMDAwMDc5IDAwMDAwIG4gCjAwMDAwMDAxNzMgMDAwMDAgbiAKMDAwMDAwMDMwMSAwMDAwMCBuIAowMDAwMDAwMzk2IDAwMDAwIG4gCnRyYWlsZXIKPDwKICAvU2l6ZSA2CiAgL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjQ5OQolJUVPRgo=";
 
 const MedicineFlow = ({ onBack, onNavigatePortal }) => {
-    const [view, setView] = useState('grid'); // 'grid', 'prescriptions', 'orders', 'payments'
+    const [view, setView] = useState('grid'); // 'grid', 'prescriptions', 'orders', 'payments', 'bills', 'alerts'
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+    // MOCK PDF DOWNLOAD HANDLER
+    const handleDownloadPDF = (invoiceId) => {
+        const byteCharacters = atob(dummyPdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Invoice_${invoiceId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     useEffect(() => {
-        if (view !== 'grid') {
-            fetchPharmacyData();
+        if (view === 'prescriptions') {
+            fetchPrescriptions();
+        } else if (view === 'orders' || view === 'payments' || view === 'bills') {
+            fetchOrders();
+        } else if (view === 'alerts') {
+            setData(mockAlerts);
+        } else {
+            setData([]);
         }
     }, [view]);
 
-    const fetchPharmacyData = async () => {
+    const fetchPrescriptions = async () => {
         if (!user.id) return;
         setLoading(true);
         try {
             const res = await patientAPI.getMyPrescriptions(user.id);
             setData(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
-            console.error("Failed to fetch pharmacy data", err);
+            console.error("Failed to fetch prescriptions", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchOrders = async () => {
+        if (!user.id) return;
+        setLoading(true);
+        try {
+            const res = await pharmacyApi.getOrders(user.id);
+            setData(Array.isArray(res) ? res : []);
+        } catch (err) {
+            console.error("Failed to fetch orders", err);
         } finally {
             setLoading(false);
         }
@@ -75,7 +121,8 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
             label: "Download Bills",
             color: "text-rose-600",
             bg: "bg-rose-50",
-            desc: "Get digital copies of your invoices for insurance."
+            desc: "Get digital copies of your invoices for insurance.",
+            action: () => setView('bills')
         },
         {
             id: 'alerts',
@@ -83,7 +130,8 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
             label: "Refill Alerts",
             color: "text-indigo-600",
             bg: "bg-indigo-50",
-            desc: "Get notified when it's time to refill your medications."
+            desc: "Get notified when it's time to refill your medications.",
+            action: () => setView('alerts')
         }
     ];
 
@@ -160,7 +208,9 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                             <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
                                 {view === 'prescriptions' && 'My Prescriptions'}
                                 {view === 'orders' && 'Track Orders'}
-                                {view === 'payments' && 'Transaction History'}
+                                {view === 'payments' && 'Payment History'}
+                                {view === 'bills' && 'Download Bills'}
+                                {view === 'alerts' && 'Refill Alerts'}
                             </h3>
                         </div>
 
@@ -180,7 +230,7 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {data.map((item) => (
+                                    {(view === 'prescriptions' || view === 'orders') && data.map((item) => (
                                         <div key={item.id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-emerald-200 transition-all group">
                                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                                                 <div className="flex items-center gap-5">
@@ -189,12 +239,12 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                                                     </div>
                                                     <div>
                                                         <h4 className="font-black text-slate-900 text-lg">
-                                                            {view === 'orders' ? `Order #ORD-RX-${item.id}` : `Prescription #${item.id.toString().padStart(4, '0')}`}
+                                                            {view === 'orders' ? `Order #${item.id}` : `Prescription #${item.id.toString().padStart(4, '0')}`}
                                                         </h4>
                                                         <div className="flex items-center gap-3 mt-1">
-                                                            <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5"><Clock size={12} /> {new Date(item.created_at).toLocaleDateString()}</span>
-                                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${getStatusColor(item.status)}`}>
-                                                                {item.status}
+                                                            <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5"><Clock size={12} /> {new Date(item.created_at || Date.now()).toLocaleDateString()}</span>
+                                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${getStatusColor(item.status || 'processing')}`}>
+                                                                {item.status || 'processing'}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -205,8 +255,8 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                                                         <div className="flex -space-x-2 mr-4">
                                                             {[1, 2, 3].map(i => (
                                                                 <div key={i} className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold ${item.status === 'delivered' ? 'bg-emerald-500' :
-                                                                        item.status === 'ready' && i <= 2 ? 'bg-blue-500' :
-                                                                            i === 1 ? 'bg-amber-500' : 'bg-slate-200'
+                                                                    item.status === 'ready' && i <= 2 ? 'bg-blue-500' :
+                                                                        i === 1 ? 'bg-amber-500' : 'bg-slate-200'
                                                                     } text-white transition-colors`}>
                                                                     {item.status === 'delivered' ? <CheckCircle2 size={12} /> : i}
                                                                 </div>
@@ -218,7 +268,7 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                                                     </button>
                                                 </div>
                                             </div>
-                                            {item.extracted_data && (
+                                            {view === 'prescriptions' && item.extracted_data && (
                                                 <div className="mt-6 pt-6 border-t border-slate-100">
                                                     <p className="text-xs text-slate-400 font-black uppercase tracking-widest mb-3">Extracted Medication List</p>
                                                     <div className="bg-white p-4 rounded-2xl text-xs font-medium text-slate-600 italic leading-relaxed border border-slate-100">
@@ -226,6 +276,96 @@ const MedicineFlow = ({ onBack, onNavigatePortal }) => {
                                                     </div>
                                                 </div>
                                             )}
+                                            {view === 'orders' && item.items && (
+                                                <div className="mt-6 pt-6 border-t border-slate-100">
+                                                    <p className="text-xs text-slate-400 font-black uppercase tracking-widest mb-3">Order Items</p>
+                                                    <div className="bg-white p-4 rounded-2xl text-sm font-medium text-slate-600 border border-slate-100">
+                                                        {item.items.map((i, idx) => (
+                                                            <div key={idx} className="flex justify-between py-1 border-b border-slate-50 last:border-0 items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-8 h-8 bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+                                                                        <img src={i.image || 'https://placehold.co/100'} alt="item" className="w-full h-full object-cover" />
+                                                                    </div>
+                                                                    <span>{i.quantity}x {i.baseName || i.name || i.product_name}</span>
+                                                                </div>
+                                                                <span className="font-bold text-slate-800">₹{(i.price * i.quantity).toFixed(0)}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="flex justify-between pt-3 mt-3 border-t border-slate-100 font-black text-slate-900">
+                                                            <span>Total</span>
+                                                            <span>₹{item.total_amount?.toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {view === 'payments' && data.map((item) => (
+                                        <div key={item.id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex justify-between items-center hover:border-purple-200 transition-all group">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600 shadow-sm">
+                                                    <CreditCard size={28} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-slate-900 text-lg">Order {item.id}</h4>
+                                                    <p className="text-xs text-slate-400 font-medium">{new Date(item.created_at || Date.now()).toLocaleDateString()} &bull; {item.payment_method === 'cod' ? 'Cash on Delivery' : 'Online Payment'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex items-center gap-4">
+                                                <div className="text-right">
+                                                    <h4 className="font-black text-slate-900 text-lg">₹{(item.total_amount || 0).toLocaleString()}</h4>
+                                                    <span className="bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">{item.status || 'Completed'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {view === 'bills' && data.map((item) => (
+                                        <div key={item.id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex justify-between items-center hover:border-rose-200 transition-all group">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600 shadow-sm">
+                                                    <FileText size={28} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-slate-900 text-lg">Pharmacy Order</h4>
+                                                    <p className="text-xs text-slate-400 font-medium">{new Date(item.created_at || Date.now()).toLocaleDateString()} &bull; Invoice #{item.id}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <h4 className="font-black text-slate-900 text-lg mr-2">₹{(item.total_amount || 0).toLocaleString()}</h4>
+                                                <button
+                                                    onClick={() => handleDownloadPDF(item.id)}
+                                                    className="bg-white border border-rose-200 text-rose-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-rose-50 transition-all shadow-sm flex items-center gap-2"
+                                                >
+                                                    <Download size={16} /> Download PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {view === 'alerts' && data.map((item) => (
+                                        <div key={item.id} className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex justify-between items-center hover:border-indigo-200 transition-all group">
+                                            <div className="flex items-center gap-5">
+                                                <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm relative">
+                                                    <Bell size={28} />
+                                                    {item.urgency === 'high' && (
+                                                        <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                                            <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-500"></span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-slate-900 text-lg">{item.name}</h4>
+                                                    <p className="text-xs font-medium mt-1 text-slate-500">{item.message}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${item.urgency === 'high' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    {item.daysLeft} Days Left
+                                                </span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

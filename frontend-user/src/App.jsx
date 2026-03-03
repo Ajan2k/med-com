@@ -38,7 +38,7 @@ const PortalSelector = ({ onSelect }) => (
 );
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [selectedPortal, setSelectedPortal] = useState(null);
 
   if (loading) {
@@ -59,9 +59,31 @@ const AppContent = () => {
     );
   }
 
+  // --- GLOBAL HEADER WITH LOGOUT STATUS ---
+  const GlobalHeader = ({ className = "absolute top-4 right-4 z-[9999]" }) => (
+    <div className={`${className} flex items-center gap-3`}>
+      <div className="bg-slate-800/90 backdrop-blur-md border border-slate-700 shadow-xl px-4 py-2 rounded-2xl flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
+          {user.name?.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <p className="text-white text-sm font-bold leading-tight">{user.name}</p>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider text-left">Patient</p>
+        </div>
+      </div>
+      <button
+        onClick={logout}
+        className="bg-rose-500/10 hover:bg-rose-500 hover:text-white border border-rose-500/20 text-rose-500 text-sm font-bold px-4 py-2 rounded-2xl transition-all shadow-lg"
+      >
+        Log Out
+      </button>
+    </div>
+  );
+
   if (!selectedPortal) {
     return (
       <div className="relative">
+        <GlobalHeader className="absolute top-4 right-4 z-[9999]" />
         <PortalSelector onSelect={setSelectedPortal} />
       </div>
     );
@@ -70,7 +92,8 @@ const AppContent = () => {
   if (selectedPortal === 'chat') {
     return (
       <div className="relative">
-        <button onClick={() => setSelectedPortal(null)} className="fixed top-4 left-4 z-50 bg-slate-800/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10">
+        <GlobalHeader className="fixed top-4 right-4 sm:right-10 z-[9999]" />
+        <button onClick={() => setSelectedPortal(null)} className="fixed top-4 left-4 sm:left-10 z-50 bg-slate-800/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10 shadow-xl">
           ← Back to Portal
         </button>
         <ChatPage onNavigatePortal={setSelectedPortal} />
@@ -80,8 +103,9 @@ const AppContent = () => {
 
   return (
     <div className="relative">
-      <button onClick={() => setSelectedPortal(null)} className="fixed top-6 right-[calc(50%+380px)] z-[999] bg-slate-800/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10">
-        ← Portal
+      <GlobalHeader className="fixed top-4 right-4 sm:right-10 z-[9999]" />
+      <button onClick={() => setSelectedPortal(null)} className="fixed top-4 left-4 sm:left-10 z-[9999] bg-slate-800/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-slate-700 transition-colors border border-white/10 shadow-xl">
+        ← Back to Portal
       </button>
       <PharmacyApp />
     </div>
